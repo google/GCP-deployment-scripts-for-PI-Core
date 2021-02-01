@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-16"?>
+<ANServiceConfigurationDataContract xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/OSIsoft.AN.WCF">
+ <CalculationEngineParameters>
+   <AutoBackfillingEnabled>true</AutoBackfillingEnabled>
+   <AutoRecalculationEnabled>true</AutoRecalculationEnabled>
+   <AutoRecalculationIgnoreTimeInSeconds>30</AutoRecalculationIgnoreTimeInSeconds>
+   <AutoRecalculationMinWaitTimeInSeconds>60</AutoRecalculationMinWaitTimeInSeconds>
+   <CalculationWaitTimeInSeconds>5</CalculationWaitTimeInSeconds>
+   <CreateFuturePIPointsForAmbiguousOutputTimes>true</CreateFuturePIPointsForAmbiguousOutputTimes>
+   <DataCacheConfiguration>
+     <CacheTimeSpanInMinutes>5</CacheTimeSpanInMinutes>
+     <MaxCacheEventsPerAttribute>1024</MaxCacheEventsPerAttribute>
+     <MinCacheEventsPerAttribute>1</MinCacheEventsPerAttribute>
+     <NumberParallelDataPipes>1</NumberParallelDataPipes>
+   </DataCacheConfiguration>
+   <DataWriterConfiguration>
+     <NumberDataWriterThreads>1</NumberDataWriterThreads>
+   </DataWriterConfiguration>
+   <EvaluationPartitionSize>10000</EvaluationPartitionSize>
+   <LoadSheddingParameters>
+     <EvaluationsToQueueBeforeSkipping>50</EvaluationsToQueueBeforeSkipping>
+     <LoadSheddingEnabled>true</LoadSheddingEnabled>
+   </LoadSheddingParameters>
+   <MaxAllowedAutoRecalculationSpanInDays>180</MaxAllowedAutoRecalculationSpanInDays>
+   <NumberEvaluationThreads>2</NumberEvaluationThreads>
+ </CalculationEngineParameters>
+ <CommonParameters>
+   <RuntimeStorageFolderPath>C:\ProgramData\OSIsoft\PIAnalysisNotifications</RuntimeStorageFolderPath>
+ </CommonParameters>
+ <IsTelemetryAllowed>true</IsTelemetryAllowed>
+ <RecalculationEngineParameters>
+   <MaxConcurrentRecalculationRequests>1</MaxConcurrentRecalculationRequests>
+   <MaximumAllowedAutoBackfillingSpanInHours>72</MaximumAllowedAutoBackfillingSpanInHours>
+ </RecalculationEngineParameters>
+ <RegisteredHosts>
+   <ANRegisteredHostDataContract>
+     <HostName>.</HostName>
+   </ANRegisteredHostDataContract>
+ </RegisteredHosts>
+ <Version>1</Version>
+</ANServiceConfigurationDataContract>
