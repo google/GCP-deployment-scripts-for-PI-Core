@@ -1,6 +1,6 @@
 ## Description
 
-OSIsoft PI System on GCP are a set of deployment scripts created by Quantiphi Inc. in collaboration with Google and OSIsoft to install various PI System elements on Google's VMs. The deployment scripts are automated reference deployments that use Terraforn templates to deploy key PI technologies on GCP, following OSIsoft and GCP best practices.
+GCP deployment scripts for PI Core are a set of deployment scripts created by Quantiphi Inc. in collaboration with Google and OSIsoft to install various PI System elements on Google's VMs. The deployment scripts are automated reference deployments that use Terraforn templates to deploy key PI technologies on GCP, following OSIsoft and GCP best practices.
 
 This deployment guide provides step-by-step instructions for deploying a PI System on the GCP environment for a new installations of the PI System. OSIsoft PI System on GCP is intended for use by existing OSIsoft customers to support quick and iterative testing and prototyping purposes. As development environments move to the cloud, PI Admins need easy and quick ways to deploy resources for their testing cycles. OSIsoft PI System on GCP provides an easy way to deploy a full PI System repeatedly and reliably to the Google Cloud for this type of development cycle.
 
@@ -20,7 +20,7 @@ The scripts provided in this repository leverage Terraform and Windows Powershel
 
 ## Deployment Architecture for OSIsoft PI System on GCP
 
-OSIsoft PI System on GCP cater to both High Availability and Non-High Availability scenarios to manage different traffic loads and other user requirements for scale.
+GCP deployment scripts for PI Core cater to both High Availability and Non-High Availability scenarios to manage different traffic loads and other user requirements for scale.
 
 ### Non-HA Architecture
 
@@ -289,7 +289,7 @@ Make changes to the Configuration:
 
 >  Note: destroy will not delete lables set on the project. You will have to manually delete those labels by navigating to Project Settings->Labels
 
-**This is not an officially supported Google product.**
+**This is not an officially supported Google or OSIsoft product.**
 
  
 
