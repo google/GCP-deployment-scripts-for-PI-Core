@@ -1,73 +1,80 @@
+## Note
+
+> Small to medium environemnt with High Availabilty is not available at this time, updates expected later this month - April 2021.
+
 ## Description
 
-GCP deployment scripts for PI Core are a set of deployment scripts created by Quantiphi Inc. in collaboration with Google and OSIsoft to install various PI System elements on Google's VMs. The deployment scripts are automated reference deployments that use Terraforn templates to deploy key PI technologies on GCP, following OSIsoft and GCP best practices.
+GCP deployment scripts for OSIsoft PI Core have been created by Quantiphi Inc. in partnership with Google and OSIsoft to automate installation and configuration of OSIsoft PI software components and Google Cloud Computing Services. Two scenarios are supported, small to medium PI Core system with or without high availability.
 
-This deployment guide provides step-by-step instructions for deploying a PI System on the GCP environment for a new installations of the PI System. OSIsoft PI System on GCP is intended for use by existing OSIsoft customers to support quick and iterative testing and prototyping purposes. As development environments move to the cloud, PI Admins need easy and quick ways to deploy resources for their testing cycles. OSIsoft PI System on GCP provides an easy way to deploy a full PI System repeatedly and reliably to the Google Cloud for this type of development cycle.
+This guide provides step-by-step instructions for deploying a new installation of OSIsoft PI Core on GCP environment. GCP deployment scripts for PI Core is intended for use by new and existing OSIsoft customers to support quick and iterative testing and prototyping. OSIsoft PI Core on GCP scripts provides an easy way to deploy PI software repeatedly and reliably to the Google Cloud.
 
->  Note: The deployment samples are meant for testing and prototyping purposes, and not meant to be used within a production environment
-
-The scripts provided in this repository leverage Terraform and Windows Powershell for fresh installations of the following compoenents of the PI System:
+>  Note: 
+>  * The deployment samples are meant for testing and prototyping purposes only, and not intended for use within a production environment
+>  * The deployment scripts are not an officially supported Google or OSIsoft product
+  
+The scripts provided in this repository leverage Terraform and Windows Powershell for new installations of the following components of PI Core:
+*  Microsoft SQL Server 
 *  PI Data Archive (DA)
 *  PI Asset Framework (AF)
-*  SQL Server 
-*  Analysis/Notification
-*  PI Integrator
-*  PI Web API (and its OMF end-point)
+*  PI Asset Framework Analytics and Notifications
+*  PI Integrator for Business Intelligence supporting Google Pub/Sub, Google Cloud Storage and Google BigQuery
+*  PI Web API (including OMF end-point)
 *  PI Vision
-*  SQL Server Database
 
-**Use-case:** *As a user, I should be able to install and host the PI System and Integrator on Google Cloud’s Compute instances for lower infrastructure costs and higher availability which is automated through Infrastructure as Code (IaC)*
+Google Services to support PI Core include:
+* Google Cloud Storage
+* Google Compute Engine
+* Google Cloud DNS
+* Google Cloud VPC
+* Google Managed Active Directory
+* Google Cloud Load Balancing and Cloud Armor
 
-## Deployment Architecture for OSIsoft PI System on GCP
+## Deployment Architecture for OSIsoft PI Core on GCP
 
-GCP deployment scripts for PI Core cater to both High Availability and Non-High Availability scenarios to manage different traffic loads and other user requirements for scale.
+GCP deployment scripts for PI Core cater to two scenarios:
+1. example small to medium PI Core environment, also referred to as Non-HA
+2. example small to medium PI Core environment with the addition of high availability, also referred to as HA
 
-### Non-HA Architecture
+> Note: in the interest of minimizing initial cost, minimal compute instances, storage type and storage have been configured. For example, the two scenarios are derived from OSIsoft topologies of the same name and to meet the maximum performance envelope would require additional memory, disk and a different disk type. Google and OSIsoft recommend consulting your respective architecture experts for guidance on the appropriate architecture, compute, storage type and storage configuration to meet your development and testing requirements. 
 
-Suited best for less than ~10,000 events or requests per second, the Non-HA topology divided the PI System components into 3 subnets on GCP
+The Google Compute Engine instances are configured using N2D Series, powered by AMD EPYC Rome CPU platform. For more information on Google Cloud and AMD, please refer to [this link](https://cloud.google.com/blog/products/compute/announcing-the-n2d-vm-family-based-on-amd)
+
+### Small to medium PI Core environment (non-HA)
 
 ![](images/Non-HA_Architecture.png)
 
-The Non-HA topology utilizes AMD's **n2d-standard-2** vCPUs (consisting of 2 vCPUs and 8GB memory). For more information on Google Cloud and AMD, please refer to [this link](https://cloud.google.com/blog/products/compute/announcing-the-n2d-vm-family-based-on-amd)
+Four compute engines
+* SQL Server
+* PI Data Archive, PI Asset Framework including Analysis and Notifications
+* PI Vision, PI Web API (omf endpoint), PI Integrator for Business Intelligence
+* Baston host accessible using Google Identity Aware Proxy
 
-* Subnet 1: The MS SQL database is deployed separately to ensure isolation
-* Subnet 2: The PI Server (AF, DA, Analysis & Notifications) is deployed on a Compute instance
-* Subnet 3: PI Vision, PI Web and Web OMF APIs and the PI Integrator are deployed on a Compute engine instance. 
-* Subnet 3: Bastion server on a Compute instance separate from PI Vision, Web and Integrator. Cloud Load Balancer (HTTPS) is provisioned to access the PI Vision Server from the internet
-
-> **Note:**
-> *  MS SQL Server requires connectivity with the PI AF and DA servers for storing information regarding the archived IoT data. Alongwith MS SQL, the PI Vision and PI integrator must also have connectivity with the AF and DA servers.
-> *  Google Managed AD has been used to manage authentication and authorisation. Managed Service for Microsoft Active Directory (AD) is a highly available, hardened Google Cloud service running actual Microsoft AD that enables you to manage authentication and authorization for AD-dependent workloads, automate AD server maintenance and security configuration, and also connect your on-premises AD domain to the cloud.
-> * However this solution caters strictly to customers with AD that is - or plans to be - on Google Cloud, and does not reside on-premise
-
-### HA Architecture
-
-Best suited for ~20,000 events per second. If selected, an HA architecture spans two Availability Zones, each zone consisting of one or more discrete data centers, each with redundant power, networking, and connectivity, housed in separate facilities.
+### Small to medium PI Core environment with High Availability (HA)
 
 ![](images/HA_Architecture.png)
 
-The HA topology utilizes AMD's *n2d-standard-4* vCPUs (consists of 4 vCPUs and 16GB memory). For more information on Google Cloud and AMD, refer to [this link](https://cloud.google.com/blog/products/compute/announcing-the-n2d-vm-family-based-on-amd)
 
- The PI System components for HA are deployed in 10 different subnets spanned across 3 zones (2 zones for mirroring PI components, and 1 zone for the Windows Server Failover Cluster). Described below is the logical separation of the PI components and resources across these subnets and zones.
+Google and OSIsoft features are utilized to add high availability to the small to medium PI Core deployment. Additional components include
+Google Cloud
+* multiple availability zones
+* Load balancer
+Microsoft
+* Windows Clusters
+* SQL Server Always On availability groups
+PI Core
+* PI Collective for the PI Data Archive
+* High availabilty for PI Asset Framework, Analysis and Notifications.
+* Multiple instances of PI Vision and PI Web API
 
-* The MS SQL Database is deployed in a separate subnet for isolation. The MS SQL server is deployed as SQL server “Always on” availability groups. SQL servers can be accessed via SQL listener
-* 2 Compute Engine instances are deployed in two different subnets behind GCP Internal Load balancer. These instances are running PI Asset Framework and Data archive services
-* 2 Compute Engine instances are deployed in two different subnets behind GCP Internal (TCP) Load Balancer. These instances run PI Server: Analysis and Notification services and the PI Integrator. These two instances are in Windows Server Failover Cluster with Witness configured on different a subnet and zone (Zone C) in a Compute Engine instance
-* 2 Compute Engine instances are running PI Vision and PI Web API as one application
-* 2 Compute Engine instances are running the PI Web OMF endpoint as one application. These two applications are running behind the GCP HTTPS Load Balancer for connectivity from the internet
-* 2 Bastion servers are deployed in two zones for connecting to the application server on a private IP address
-* Google Managed AD has been used to manage authentication and authorisation. Managed Service for Microsoft Active Directory (AD) is a highly available, hardened Google Cloud service running actual Microsoft AD that enables you to manage authentication and authorization for AD-dependent workloads, automate AD server maintenance and security configuration, and also connect your on-premises AD domain to the cloud
+Microsoft Clusters support SQL Server, PI Asset Framework Analysis and Notifications Services.
+Cloud Load Balancing supports Microsoft Clusters, Asset Framework, PI Vision and PI Web API.
 
-(#code-description)
+#### High Availability means additional resources and allocation requirements!
 
-> **Note:**
-> * The MS SQL Server requires connectivity with the PI AF and DA servers for storing information regarding the archived IoT data
-> * The PI Vision and PI integrator must also have connectivity with the AF and DA servers
-> * The PI Asset Framework and Data Archive services can be accessed with the DNS name of the internal TCP Load Balancer of AF and DA (Subnet 9)
-> * Analysis and Notification services can be accessed with the DNS name of the internal TCP Load Balancer of Analysis and Notification (Subnet 10)
-> * This solution caters strictly to customers with AD that is - or plans to be - on Google Cloud, and does not reside on-premise
+While the HA architecture provides improved resiliency against outages and failure it also requires more GCP resources than a non-HA configuration. 
+In addition, if changes are made to the scripts, consider the placement of components to maintain high availability, including for example allocation of resources to zones.
 
-
+**Ensure this is evaluated during the planning process i.e. before deployment.**
 
 ## Prerequisites for Deployment
 
@@ -79,18 +86,16 @@ The HA topology utilizes AMD's *n2d-standard-4* vCPUs (consists of 4 vCPUs and 1
          1. PI Server installation kit -  PI-Server_2018-SP3-Patch-1_.exe
          2. PI Vision installation kit - PI-Vision_2019-Patch-1_.exe
          3. PI Web installation kit - PI-Web-API-2019-SP1_1.13.0.6518_.exe
-         4. PI Integrator installation kit - OSIsoft.PIIntegratorBA_2020_ADV_1000_2.3.0.425_.exe
+         4. PI Integrator installation kit - OSIsoft.PIIntegratorBA_2020_ADV_1000_2.3.0.425_.exe (optional)
          5. Temporary PI license    
-
-
  
 *  Terraform with version >= 0.13. To install Terraform, head to the [download manager](https://www.terraform.io/downloads.html)
 
-### Specialized Knowledge
+### Google Cloud Services
 
-As highlighted in the architectures above, the PI System is installed in multiple subnets/zones on various Google Compute instances based on OSIsoft best practices. Before starting installation, it is recommended that users familiarize themselves with the GCP resources provisioned to manage this deployment. Refer to the links below for a deeper expanation:
+Before starting installation, it is recommended that users familiarize themselves with the GCP resources provisioned to manage this deployment. Refer to the links below for a deeper expanation:
 
-*  [**Google Compute Engine**](https://cloud.google.com/compute/docs) - Computing infrastructure in predefined or custom machine sizes on GCP. Compute Engine offers predefined virtual machine configurations for every need and are used to host the PI System and Domain Controller
+*  [**Google Compute Engine**](https://cloud.google.com/compute/docs) - Computing infrastructure in predefined or custom machine sizes on GCP. Compute Engine offers predefined virtual machine configurations for every need and are used to host PI Core software
 *  [**Cloud Load Balancing**](https://cloud.google.com/load-balancing/docs) - Distributes load-balanced compute resources in single or multiple regions (closer to users) meets high availability requirements. It can put your resources behind a single anycast IP and scale your Compute resources up or down for your applications
 *  [**Cloud NAT**](https://cloud.google.com/nat/docs/overview) - Cloud NAT (network address translation) allows Google’s VM instances without external IP addresses and private Kubernetes Engine clusters to send outbound packets to the internet and receive any corresponding established inbound response packets
 *  [**Google Managed Active Directory**](https://cloud.google.com/managed-microsoft-ad/docs) - Managed Service for Microsoft Active Directory (AD) is a highly available, hardened GCP service running actual Microsoft AD that allows you to manage authentication and authorization for AD-dependent workloads, automate AD server maintenance and security configuration, and connect any on-premises AD domain to the cloud. *For this engagement, it is assumed that customers ensure their AD is on Google Cloud, and not on-premise*
@@ -98,17 +103,6 @@ As highlighted in the architectures above, the PI System is installed in multipl
 *  [**Cloud Armor**](https://cloud.google.com/armor/docs) - Protects infrastructure and applications from distributed denial-of-service (DDoS) attacks
 *  [**Cloud DNS**](https://cloud.google.com/dns/docs) - USed to publish your domain names by using Google's infrastructure for production-quality, high-volume DNS services
 *  [**Google Cloud Storage (GCS)**](https://cloud.google.com/storage/docs) - You can use GCS buckets for a range of scenarios including serving website content, storing data for archival and disaster recovery, or distributing large data objects to users via direct download
-
-### High Availability Consideration
-
-The High Availability configuration for takes advantage of dynamic capabilities of the GCP. This allows for easy scaling of various Google Compute Engine types and storage capacity as your PI System grows in scope and scale. 
-
-Before deploying OSIsoft PI System on GCP, users must decide whether deploy the PI System in an HA environment or in a non-HA one. While the HA architecture provides improved resiliency against outages and failure it also requires more GCP resources than a non-HA configuration. **Ensure this is evaluated during the planning process i.e. before deployment.**
-
-**PI System in High Availability (HA):** This option creates two instances of almost each application, and is recommended for traffic of around 20,000 events per second. It is the responsibility of the user to ensure that the subnets are correctly configured in different availability zones to ensure true high availability of resources
-
-**PI System without High Availability (non-HA):** This option creates only a single instance of each application, uses fewer GCP resources, and is best suited for traffic of around 10,000 events per second.
-
 
 ## Deployment Procedure
 
@@ -144,6 +138,7 @@ The folder structure for this bucket will be as follows:
 
 
 #### 3. Terraform
+
 1.  Once your code has been downloaded or cloned as mentioned in the first step, head over to the **terraform** directory of the repo
 2.  Within the directory, edit the **"provider.tf"** file. Within that file, change the following for the **backend block**:
          a. Enter the name of the GCS bucket created in step above to store the **.tfstate** file
@@ -197,8 +192,7 @@ Ensure the APIs listed below are enabled at least 10 minutes before the Terrafor
 Ensure that **no existing network** is be present withing RFC-1918 CIDR ranges. Users can verify this by heading to their GCP console, into "VPC Network" under the "Networking" category under the IP Ranges Column. For more information, please visit this [documentation link for Google Managed AD](https://cloud.google.com/managed-microsoft-ad/docs/selecting-ip-address-ranges#using_a_24_range_size). 
 
  
- 
-### Steps to Deploy the OSISoft PI System on GCP (non-HA)
+### Steps to Deploy the OSISoft PI Core on GCP
 
 Once all the steps in the previous section are complete, the Terraform deployment can begin
 
@@ -222,7 +216,7 @@ Once all the steps in the previous section are complete, the Terraform deploymen
             7. storage            = "osi-pi-test-2" [Your bucket name consisting of the powershell executable files]
             8. creds              = "creds.json" [Your credential file name within the the terraform directory. See Step 3 in the "Before you Deploy" section]
             9. tf_sa              = "gcp-devops@appspot.gserviceaccount.com"
-            10. epsec             = 10000 / 20000 [events per second. For non-HA deployments, 10,000 events per second is used]
+            10. epsec             = **Option not implemented** 10000 / 20000 [events per second. For non-HA deployments, 10,000 events per second is used]
             11. valid_domain      = Yes / No
             12. ssl-dn            = "osi.qdatalabs.com" [If you have selected "Yes" for point 11, add your valid public domain name and Google will manage the certificate. If "No", use the mentioned dummy domain. If you have a separate certificate (self-signed or otherwise), please refer to "Post Deployment Steps"]
 
@@ -237,9 +231,9 @@ Once all the steps in the previous section are complete, the Terraform deploymen
 
 ## Post Deployment Steps
 
-Now that you have successfully deployed your PI System executables, you will have to test them to ensure they are running correctly. Before you begin running your PI System components, follow the pre-requisites and configuration changes below:
+Now that you have successfully deployed your PI Core software, you will have to test them to ensure they are running correctly. Before you begin running your PI Core components, follow the pre-requisites and configuration changes below:
 
-#### 1. (Optional) If Users Have Their Own Certificate
+### 1. (Optional) If Users Have Their Own Certificate
 
 This step is only applicable to users who do not immediately have a valid domain but would prefer to have their own certificate over a Google Managed one. 
 
@@ -258,28 +252,41 @@ Below are the steps to upload the certificate on the GCP Cloud Console
 * Finally, select **Update** to update the changes
 
 
-#### 2. Security listing of IPs for Cloud Armor
+### 2. Security configuration for Cloud Armor and PI Vision
 
-This step is required to ensure the appropriate users are listed in the Cloud Armor rules so that the load balancer accepts the corresponding IP addresses. Change the configurations through the following steps:
+#### Cloud Armor
 
-**A) For Cloud Armor**
-* In your GCP Cloud Console, go to the Cloud Armor page from the navigation menu
-* Select the following policy: **policy-pivii** 
-* To edit the rules there, select the rule that has the following description: **“first rule”** and click on the edit icon on the right of the table 
-* Under the **Match** section within that page, add your Public IP Address besides the already existing IP. Ensure they are separated by “,” 
-* Update the rule
+This step is required to ensure the appropriate users are listed in the Cloud Armor rules so that the load balancer accepts the corresponding IP addresses. Change the configuration using the following steps:
+
+1. In your GCP Cloud Console, go to the Cloud Armor page from the navigation menu
+2. Select the following policy: **policy-pivii** 
+3. To edit the rules there, select the rule that has the following description: **“first rule”** and click on the edit icon on the right of the table 
+4. Under the **Match** section within that page, add your Public IP Address besides the already existing IP. Ensure they are separated by “,” 
+5. Update the rule
 
 **B) PI Vision Authentication**
-This can be done in two ways: through <basicAuthenticaltion> or using Powershell. 
-* Basic Authentication: Refer to the [following documentation](https://docs.microsoft.com/en-us/iis/configuration/system.webserver/security/authentication/basicauthentication) provided by Microsoft to undergo steps for basic authentication
-* With Powershell Scripts:
-  * Run PowerShell as an administrator
-  * Run the following command: **Enable-WindowsOptionalFeature -Online -FeatureName IIS-BasicAuthentication**
 
-Make changes to the Configuration:
-* Follow the steps present in this official PI Vision document: [Enable Basic Authentication: PI Vision 2019](https://livelibrary.osisoft.com/LiveLibrary/content/en/vision-v3/GUID-9CF76AC8-BBB9-4E1C-A77C-63373901E64A#addHistory=true&filename=GUID-4B33BAFA-A923-4550-B3DC-CAD83E3C0587.xml&docid=GUID-9CF76AC8-BBB9-4E1C-A77C-63373901E64A&inner_id=&tid=&query=&scope=&resource=&toc=false&eventType=lcContent.loadDocGUID-9CF76AC8-BBB9-4E1C-A77C-63373901E64A)
-* Go to your machine's Internet Information Services (IIS) Manager and click on the Default Website in the Connections panel. Restart this connection (on the right side of the window)
+If using basic authentication with PI Vision, complete the following steps
 
+1. Enable basic authentication feature
+
+1.1 Manual
+
+Refer to the [following documentation](https://docs.microsoft.com/en-us/iis/configuration/system.webserver/security/authentication/basicauthentication) provided by Microsoft to undergo steps to enable basic authentication.
+
+1.2 PowerShell
+
+Run PowerShell as an administrator
+Run the following command: 
+```
+Enable-WindowsOptionalFeature -Online -FeatureName IIS-BasicAuthentication
+```
+
+2. Update IIS configuration for PI VIsion
+
+Follow the steps present in this official PI Vision document: [Enable Basic Authentication: PI Vision 2019](https://livelibrary.osisoft.com/LiveLibrary/content/en/vision-v3/GUID-9CF76AC8-BBB9-4E1C-A77C-63373901E64A#addHistory=true&filename=GUID-4B33BAFA-A923-4550-B3DC-CAD83E3C0587.xml&docid=GUID-9CF76AC8-BBB9-4E1C-A77C-63373901E64A&inner_id=&tid=&query=&scope=&resource=&toc=false&eventType=lcContent.loadDocGUID-9CF76AC8-BBB9-4E1C-A77C-63373901E64A)
+
+3. Go to your machine's Internet Information Services (IIS) Manager and click on the Default Website in the Connections panel. Restart this connection (on the right side of the window)
 
 ## Destroy the deployment
 
