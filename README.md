@@ -156,7 +156,8 @@ The folder structure for this bucket will be as follows:
             "roles/compute.loadBalancerAdmin",
             "roles/compute.storageAdmin",
             "roles/iam.serviceAccountUser",
-            "roles/resourcemanager.projectMover"
+            "roles/resourcemanager.projectMover",
+            "roles/storage.admin"
             ]
 
 
@@ -295,6 +296,7 @@ Follow the steps present in this official PI Vision document: [Enable Basic Auth
         terrafom destroy
 
 >  Note: destroy will not delete lables set on the project. You will have to manually delete those labels by navigating to Project Settings->Labels
+>  Note: After destroying the code via terraform destroy, manual deletion of instance template (C drive) disks are required through console.
 
 **This is not an officially supported Google or OSIsoft product.**
 
