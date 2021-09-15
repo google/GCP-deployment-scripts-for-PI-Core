@@ -69,6 +69,9 @@ PI Core
 Microsoft Clusters support SQL Server, PI Asset Framework Analysis and Notifications Services.
 Cloud Load Balancing supports Microsoft Clusters, Asset Framework, PI Vision and PI Web API.
 
+>  Note: 
+>  * PI Integrator for Business Analytics deployments in High availablity are not recommended for production use. They must be performed in dev mode. 
+
 #### High Availability means additional resources and allocation requirements!
 
 While the HA architecture provides improved resiliency against outages and failure it also requires more GCP resources than a non-HA configuration. 
@@ -295,6 +298,17 @@ Follow the steps present in this official PI Vision document: [Enable Basic Auth
         terrafom destroy
 
 >  Note: destroy will not delete lables set on the project. You will have to manually delete those labels by navigating to Project Settings->Labels
+
+## Delete the persistent disks
+
+* After the "terraform destroy" command, all resources except the persistent disks in the console will be deleted. Ensure the disks are manually deleted by navigating the console as follows: Console -> Compute Engine -> Disks.
+
+
+
+## Contact
+
+Questions, issues, and comments should be directed to niharika.pasi@quantiphi.com
+
 
 **This is not an officially supported Google or OSIsoft product.**
 
