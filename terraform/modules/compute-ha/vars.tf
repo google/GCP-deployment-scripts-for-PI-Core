@@ -1,19 +1,3 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
-
 variable "project_id" {
   default = "null"
 }
@@ -88,6 +72,285 @@ variable "compute-region" {
   default = "null"
 }
 
+variable "zones" {
+  
+  type    = list(string)
+}
+
 variable "ssl-dn-compute" {
   default = "null"
+}
+
+variable "valid_domain" {
+  default = "null"
+}
+
+
+
+
+#################
+# Stateful disks 1
+#################
+variable "stateful_disks" {
+  type = list(string)
+  description = "(optional) describe your variable"
+   default =  ["disk-daaf-1"]
+  }
+#################
+# Rolling Update
+#################
+
+variable "update_policy" {
+  description = "The rolling update policy. https://www.terraform.io/docs/providers/google/r/compute_region_instance_group_manager.html#rolling_update_policy"
+  type = list(object({
+    max_surge_percent            = number
+    instance_redistribution_type = string
+    max_unavailable_fixed        = number
+    replacement_method           = string
+    min_ready_sec                = number
+    minimal_action               = string
+    type                         = string
+  }))
+  default = [{
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "NONE"
+    minimal_action               = "RESTART"
+    max_surge_percent            = 0
+    max_unavailable_fixed        = 2
+    min_ready_sec                = 50
+    replacement_method           = "RECREATE"
+
+  }]
+}
+
+#################
+# Stateful disks 2
+#################
+variable "stateful_disks1" {
+  type = list(string)
+  description = "(optional) describe your variable"
+   default =  ["disk-daaf-4"]
+  }
+#################
+# Rolling Update
+#################
+
+variable "update_policy1" {
+  description = "The rolling update policy. https://www.terraform.io/docs/providers/google/r/compute_region_instance_group_manager.html#rolling_update_policy"
+  type = list(object({
+    max_surge_percent            = number
+    instance_redistribution_type = string
+    max_unavailable_fixed        = number
+    replacement_method           = string
+    min_ready_sec                = number
+    minimal_action               = string
+    type                         = string
+  }))
+  default = [{
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "NONE"
+    minimal_action               = "RESTART"
+    max_surge_percent            = 0
+    max_unavailable_fixed        = 2
+    min_ready_sec                = 50
+    replacement_method           = "RECREATE"
+
+  }]
+}
+
+#################
+# Stateful disks 3
+#################
+variable "stateful_disks2" {
+  type = list(string)
+  description = "(optional) describe your variable"
+   default =  ["disk-daaf-2"]
+  }
+#################
+# Rolling Update
+#################
+
+variable "update_policy2" {
+  description = "The rolling update policy. https://www.terraform.io/docs/providers/google/r/compute_region_instance_group_manager.html#rolling_update_policy"
+  type = list(object({
+    max_surge_percent            = number
+    instance_redistribution_type = string
+    max_unavailable_fixed        = number
+    replacement_method           = string
+    min_ready_sec                = number
+    minimal_action               = string
+    type                         = string
+  }))
+  default = [{
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "NONE"
+    minimal_action               = "RESTART"
+    max_surge_percent            = 0
+    max_unavailable_fixed        = 2
+    min_ready_sec                = 50
+    replacement_method           = "RECREATE"
+
+  }]
+}
+
+################
+# Stateful disks 4
+################
+variable "stateful_disks3" {
+  type = list(string)
+  description = "(optional) describe your variable"
+   default =  ["disk-daaf-5"]
+}
+
+# Rolling Update
+variable "update_policy3" {
+  description = "The rolling update policy. https://www.terraform.io/docs/providers/google/r/compute_region_instance_group_manager.html#rolling_update_policy"
+  type = list(object({
+    max_surge_percent            = number
+    instance_redistribution_type = string
+    max_unavailable_fixed        = number
+    replacement_method           = string
+    min_ready_sec                = number
+    minimal_action               = string
+    type                         = string
+  }))
+  default = [{
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "NONE"
+    minimal_action               = "RESTART"
+    max_surge_percent            = 0
+    max_unavailable_fixed        = 2
+    min_ready_sec                = 50
+    replacement_method           = "RECREATE"
+
+  }]
+}
+
+################
+# Stateful disks 5
+# ################
+variable "stateful_disks4" {
+  type = list(string)
+  description = "(optional) describe your variable"
+   default =  ["disk-pivii-1"]
+}
+
+# Rolling Update
+variable "update_policy4" {
+  description = "The rolling update policy. https://www.terraform.io/docs/providers/google/r/compute_region_instance_group_manager.html#rolling_update_policy"
+  type = list(object({
+    max_surge_percent            = number
+    instance_redistribution_type = string
+    max_unavailable_fixed        = number
+    replacement_method           = string
+    min_ready_sec                = number
+    minimal_action               = string
+    type                         = string
+  }))
+  default = [{
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "NONE"
+    minimal_action               = "RESTART"
+    max_surge_percent            = 0
+    max_unavailable_fixed        = 2
+    min_ready_sec                = 50
+    replacement_method           = "RECREATE"
+
+  }]
+}
+# ################
+# # Stateful disks 6
+# ################
+variable "stateful_disks5" {
+  type = list(string)
+  description = "(optional) describe your variable"
+   default =  ["disk-pivii-2"]
+}
+
+# Rolling Update
+variable "update_policy5" {
+  description = "The rolling update policy. https://www.terraform.io/docs/providers/google/r/compute_region_instance_group_manager.html#rolling_update_policy"
+  type = list(object({
+    max_surge_percent            = number
+    instance_redistribution_type = string
+    max_unavailable_fixed        = number
+    replacement_method           = string
+    min_ready_sec                = number
+    minimal_action               = string
+    type                         = string
+  }))
+  default = [{
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "NONE"
+    minimal_action               = "RESTART"
+    max_surge_percent            = 0
+    max_unavailable_fixed        = 2
+    min_ready_sec                = 50
+    replacement_method           = "RECREATE"
+
+  }]
+}
+################
+# Stateful disks 7
+################
+variable "stateful_disks6" {
+  type = list(string)
+  description = "(optional) describe your variable"
+    default =  ["disk-womf-1"]
+}
+
+# Rolling Update
+variable "update_policy6" {
+  description = "The rolling update policy. https://www.terraform.io/docs/providers/google/r/compute_region_instance_group_manager.html#rolling_update_policy"
+  type = list(object({
+    max_surge_percent            = number
+    instance_redistribution_type = string
+    max_unavailable_fixed        = number
+    replacement_method           = string
+    min_ready_sec                = number
+    minimal_action               = string
+    type                         = string
+  }))
+  default = [{
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "NONE"
+    minimal_action               = "RESTART"
+    max_surge_percent            = 0
+    max_unavailable_fixed        = 2
+    min_ready_sec                = 50
+    replacement_method           = "RECREATE"
+
+  }]
+}
+# ################
+# Stateful disks 8
+################
+variable "stateful_disks7" {
+  type = list(string)
+  description = "(optional) describe your variable"
+   default =  ["disk-womf-2"]
+}
+
+# Rolling Update
+variable "update_policy7" {
+  description = "The rolling update policy. https://www.terraform.io/docs/providers/google/r/compute_region_instance_group_manager.html#rolling_update_policy"
+  type = list(object({
+    max_surge_percent            = number
+    instance_redistribution_type = string
+    max_unavailable_fixed        = number
+    replacement_method           = string
+    min_ready_sec                = number
+    minimal_action               = string
+    type                         = string
+  }))
+  default = [{
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "NONE"
+    minimal_action               = "RESTART"
+    max_surge_percent            = 0
+    max_unavailable_fixed        = 2
+    min_ready_sec                = 50
+    replacement_method           = "RECREATE"
+
+  }]
 }

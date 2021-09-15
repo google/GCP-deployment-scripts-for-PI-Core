@@ -1,19 +1,5 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
 
+# Getting the projet details and finding zone.
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
 $zone3 = gcloud projects describe $project --format='value[](labels.zone3)'
@@ -49,7 +35,7 @@ if ($flag -eq "True"){
     $username = "$domain\setupadmin"
     $cred = New-Object System.Management.Automation.PSCredential($username,$password)
     #$storage = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.storage)' --zone $zone
-
+    $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
     #Static IP address 
     $Network = Get-WmiObject Win32_NetworkAdapterConfiguration -ComputerName $env:COMPUTERNAME -EA Stop | ? {$_.IPEnabled}
     $netmask  = $Network.IPSubnet[0]
@@ -75,13 +61,14 @@ if ($flag -eq "True"){
 
     # Install Chrome Browser
     $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
-    function Set-ChromeAsDefaultBrowser {
-        Add-Type -AssemblyName 'System.Windows.Forms'
-        Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
-        Sleep 2
-        [System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
-    } 
-    Set-ChromeAsDefaultBrowser
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    # function Set-ChromeAsDefaultBrowser {
+    #     Add-Type -AssemblyName 'System.Windows.Forms'
+    #     Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
+    #     Sleep 2
+    #     [System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
+    # } 
+    # Set-ChromeAsDefaultBrowser
 
     New-Item -ItemType directory -Path D:\iSCSI
     New-Item -ItemType directory -Path D:\temp
@@ -100,16 +87,20 @@ Set-Location -Path D:\temp
 Install-WindowsFeature -Name FS-Fileserver, FS-iSCSITarget-Server
 
 New-IscsiVirtualDisk -Path "D:\iSCSI\vDISK1.vhdx" -Size 5GB
-New-IscsiServerTarget –TargetName iSCSI-target1 -InitiatorId @("IPAddress:$node1_ip","IPAddress:$node2_ip")
-Add-IscsiVirtualDiskTargetMapping -TargetName iSCSI-target1 –Path "D:\iSCSI\vDISK1.vhdx"
+New-IscsiServerTarget -TargetName iSCSI-target1 -InitiatorId @("IPAddress:$node1_ip","IPAddress:$node2_ip")
+Add-IscsiVirtualDiskTargetMapping -TargetName iSCSI-target1 -Path "D:\iSCSI\vDISK1.vhdx"
 
 New-IscsiVirtualDisk -Path "D:\iSCSI\vDISK2.vhdx" -Size 10GB
-Set-IscsiServerTarget –TargetName iSCSI-target1 -InitiatorId @("IPAddress:$node1_ip","IPAddress:$node2_ip")
-Add-IscsiVirtualDiskTargetMapping -TargetName iSCSI-target1 –Path "D:\iSCSI\vDISK2.vhdx"
+Set-IscsiServerTarget -TargetName iSCSI-target1 -InitiatorId @("IPAddress:$node1_ip","IPAddress:$node2_ip")
+Add-IscsiVirtualDiskTargetMapping -TargetName iSCSI-target1 -Path "D:\iSCSI\vDISK2.vhdx"
 
-New-IscsiVirtualDisk -Path "D:\iSCSI\vDISK3.vhdx" -Size 20GB
-Set-IscsiServerTarget –TargetName iSCSI-target1 -InitiatorId @("IPAddress:$node1_ip","IPAddress:$node2_ip")
-Add-IscsiVirtualDiskTargetMapping -TargetName iSCSI-target1 –Path "D:\iSCSI\vDISK3.vhdx"
+# New-IscsiVirtualDisk -Path "D:\iSCSI\vDISK3.vhdx" -Size 20GB
+# Set-IscsiServerTarget -TargetName iSCSI-target1 -InitiatorId @("IPAddress:$node1_ip","IPAddress:$node2_ip")
+# Add-IscsiVirtualDiskTargetMapping -TargetName iSCSI-target1 -Path "D:\iSCSI\vDISK3.vhdx"
+
+# New-IscsiVirtualDisk -Path "D:\iSCSI\vDISK4.vhdx" -Size 20GB
+# Set-IscsiServerTarget -TargetName iSCSI-target1 -InitiatorId @("IPAddress:$node1_ip","IPAddress:$node2_ip")
+# Add-IscsiVirtualDiskTargetMapping -TargetName iSCSI-target1 -Path "D:\iSCSI\vDISK4.vhdx"
 
 gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=iscsiReady="True"
 

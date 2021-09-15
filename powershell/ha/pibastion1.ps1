@@ -1,19 +1,4 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
-
+# Getting the projet details and finding zone.
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
 $zone2 = gcloud projects describe $project --format='value[](labels.zone2)'
@@ -40,6 +25,7 @@ try{
     }
 }
 
+# Check if machine is domain joined. If yes then exit and do nothing.
 $flag = (Get-WmiObject -Class Win32_ComputerSystem).PartOfDomain
 if ($flag -eq "True"){
     Write-Host ("Machine is domain joined...exiting")
@@ -62,18 +48,29 @@ if ($flag -eq "True"){
 
     # Install Chrome Browser
     $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
-    function Set-ChromeAsDefaultBrowser {
-        Add-Type -AssemblyName 'System.Windows.Forms'
-        Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
-        Start-Sleep -s 10
-        [System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
-    } 
-    Set-ChromeAsDefaultBrowser  
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    # function Set-ChromeAsDefaultBrowser {
+    #     Add-Type -AssemblyName 'System.Windows.Forms'
+    #     Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
+    #     Start-Sleep -s 10
+    #     [System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
+    # } 
+    # Set-ChromeAsDefaultBrowser  
      
     Write-Host "Creating temp directory for installation files"
     New-Item -ItemType directory -Path C:\temp
     Set-Location -Path C:\temp
 
+
+################## DNS Issue has been fixed.###############################
+    #Creating task
+Set-Content c:\temp\flushdns.ps1 "Clear-DnsClientCache"
+#Scheduling the task
+$Trigger= New-ScheduledTaskTrigger  -RepetitionInterval (New-TimeSpan -Minutes 10) -Once -At (Get-Date) 
+$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "C:\temp\flushdns.ps1"
+Register-ScheduledTask -TaskName "flush dns" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
+
+###############################################################################
 $MultilineComment = @'
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
@@ -141,6 +138,11 @@ New-ADServiceAccount -Name ds-pivs-svc -PrincipalsAllowedToRetrieveManagedPasswo
 
 try{
     gcloud compute instances add-metadata $env:computername.ToLower() --zone=$zone --metadata=bastionReady="True"
+    Start-Sleep -s 5
+    while(!($flag = gcloud compute instances describe pibastion1 --format='value[](metadata.items.bastionReady)' --zone $zone)){
+        gcloud compute instances add-metadata $env:computername.ToLower() --zone=$zone --metadata=bastionReady="True"
+        Start-Sleep -s 5
+    }
 }catch{
     $Error[0] | Out-Null
 }
@@ -157,6 +159,7 @@ $MultilineComment | Out-File C:\temp\gMSA.ps1
         Register-ScheduledTask -TaskName "gMSA-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
     }else{
         Write-host "Not scheduling task on $env:computername"
-    }    
+    }  
+
     Restart-Computer
 }

@@ -1,19 +1,3 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
-
 # Getting the projet details and finding zone. Needed for updating metadata of bastion server
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
@@ -87,7 +71,7 @@ if ($flag -eq "True"){
     Install-Module -Name 7Zip4Powershell -RequiredVersion 1.9.0
     
     #Extract the installar to the staging location
-    Expand-7Zip -ArchiveFileName .\PI-Vision_2019-Patch-1_.exe -TargetPath '.\'
+    Expand-7Zip -ArchiveFileName .\PI-Vision_2020_.exe -TargetPath '.\'
     
 # Create gMSA.ps1 file to be executed by scheduler on the next boot.
 $gMSA = @'
@@ -433,6 +417,21 @@ foreach ($db in $databases){
     $dbUser.Create()
     $dbrole = $database.Roles['db_owner']
     $dbrole.AddMember($name)
+    }
+
+
+
+ $domain_trim = $domain.ToUpper().Substring(0,$domain.Length-4)
+
+    $service_accounts = @( 'ds-pivs-svc$')
+    foreach ($sa in $service_accounts){
+        $name = -join("$domain_trim","\",$sa)
+        Remove-SqlLogin -LoginName $name -Force 
+
+        Add-SqlLogin -LoginName $name -LoginType WindowsUser -DefaultDatabase "master" -GrantConnectSql -Enable
+        $sqlServer = New-Object Microsoft.SqlServer.Management.Smo.Login -ArgumentList 'pisql-1' , $name
+        $sqlServer.AddToRole("dbcreator")
+        $sqlServer.AddToRole("securityadmin")
     }
 New-Item -Path C:\db_success.txt -ItemType file
 gsutil -m cp c:\db_success.txt gs://$storage/
