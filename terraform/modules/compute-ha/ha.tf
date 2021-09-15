@@ -17,10 +17,10 @@ data "google_compute_image" "osi-sql-image" {
 
 
 #################################
-## Image Microsoft Server 2019 ## changed from 2016
+## Image Microsoft Server 2016 ##
 #################################
 data "google_compute_image" "others" {
-  family  = "windows-2019"
+  family  = "windows-2016"
   project = "windows-cloud"
 }
 
