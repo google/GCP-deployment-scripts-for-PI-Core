@@ -1,3 +1,5 @@
+
+# Getting the projet details and finding zone.
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
 $zone2 = gcloud projects describe $project --format='value[](labels.zone2)'
@@ -32,7 +34,8 @@ try{
     }
 }
 
-Write-Host "Checking doamin join"
+# Check if machine is domain joined. If yes then exit and do nothing.
+Write-Host "Checking domain join"
 $flag = (Get-WmiObject -Class Win32_ComputerSystem).PartOfDomain
 if ($flag -eq "True"){
    Write-Host ("Machine is domain joined...exiting")
@@ -52,9 +55,8 @@ if ($flag -eq "True"){
     # Get bucket name where executables are stored.
     $storage = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.storage)' --zone $zone
 
-    # Preapre the extra disk for piserver installation
+    # Prepare the extra disk for piserver installation
     Get-Disk | Where-object partitionstyle -eq "raw" | Initialize-Disk -PartitionStyle GPT -PassThru | New-Partition -DriveLetter D -UseMaximumSize | Format-Volume -FileSystem NTFS -NewFileSystemLabel "disk1" -Confirm:$false
-
 
     # Create staging location for executables 
     New-Item -Path 'D:\temp\' -ItemType Directory
@@ -62,7 +64,7 @@ if ($flag -eq "True"){
     gsutil -m cp -r gs://$storage/piserver/* D:\temp\
     $location = Get-Location
     
-    #Open firewall ports needed for communication between pi components
+    #Open firewall ports needed for communication between PI Components
     netsh advfirewall firewall add rule name="Open port for af server inbound" dir=in action=allow protocol=TCP localport=5457
     netsh advfirewall firewall add rule name="Open port for af server inbound" dir=in action=allow protocol=TCP localport=5450
     netsh advfirewall firewall add rule name="Open port for analysis service inbound" dir=in action=allow protocol=TCP localport=5463
@@ -82,13 +84,14 @@ if ($flag -eq "True"){
    
    # Install Chrome Browser
    $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
-#    function Set-ChromeAsDefaultBrowser {
-#        Add-Type -AssemblyName 'System.Windows.Forms'
-#        Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
-#        Sleep 2
-#        [System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
-#    } 
-#    Set-ChromeAsDefaultBrowser
+   Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    #    function Set-ChromeAsDefaultBrowser {
+    #        Add-Type -AssemblyName 'System.Windows.Forms'
+    #        Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
+    #        Sleep 2
+    #        [System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
+    #    } 
+    #    Set-ChromeAsDefaultBrowser
 
    # Add setupadmin to local admin group
    $addlocaladmin = Add-LocalGroupMember -Group "Administrators" -Member "$domain\setupadmin"
@@ -129,11 +132,29 @@ Set-ADServiceAccount -Identity ds-pibufss-svc -PrincipalsAllowedToRetrieveManage
 
 Invoke-Command -ComputerName sql-server -ScriptBlock{Add-LocalGroupMember -Group "AFServers" -Member "$domain\$env:computername$"}
 
+Invoke-Command -ComputerName pimssql2 -ScriptBlock{New-LocalGroup -Name "AFServers"}
+Invoke-Command -ComputerName pimssql2 -ScriptBlock{New-LocalGroup -Name "AFQueryEngines"}
+Invoke-Command -ComputerName pimssql2 -ScriptBlock{Add-LocalGroupMember -Group "AFServers" -Member "$domain\$env:computername$"}
+Invoke-Command -ComputerName pimssql2 -ScriptBlock{Add-LocalGroupMember -Group "AFQueryEngines" -Member "$domain\$env:computername$"}
+Invoke-Command -ComputerName pimssql2 -ScriptBlock{Add-LocalGroupMember -Group "AFServers" -Member "$domain\ds-piaf-svc$"}
+Invoke-Command -ComputerName pimssql2 -ScriptBlock{Add-LocalGroupMember -Group "AFQueryEngines" -Member "$domain\ds-pidas-svc$"}
+Invoke-Command -ComputerName pimssql2 -ScriptBlock{Add-LocalGroupMember -Group "AFQueryEngines" -Member "$domain\ds-piaf-svc$"}
+
 # To create AFServer SPN in the “New-ADServiceAccount” command with the option “-ServicePrincipalNames 
 $machine_domain = -join($env:computername,".",$domain)
 setspn -s AFServer/$env:computername $domain\ds-piaf-svc$
 setspn -s AFServer/$machine_domain $domain\ds-piaf-svc$ 
 
+
+$region = $zone.Substring(0,$zone.Length-2)
+$smn = gcloud compute forwarding-rules describe fwd-pisvr-1 --region=$region --flatten=serviceName
+$ip = $smn[1].trim()
+$dns_domain = -join($ip,".",$domain)
+setspn -s AFServer/$ip $domain\ds-piaf-svc$
+setspn -s AFServer/$dns_domain $domain\ds-piaf-svc$
+
+#Adding to give security privilege for PI Integrator account to access PI Data Archive
+Add-ADGroupMember -Identity PIUsersADGroup -Members ds-pint-svc$
 
 # Add piserver name to AFservers group present on the sql server. This is required as prerequisite
 Invoke-Command -ComputerName sql-server -ScriptBlock{Add-LocalGroupMember -Group "AFServers" -Member "$domain\$env:computername$"}
@@ -191,8 +212,11 @@ $cred = New-Object System.Management.Automation.PSCredential($username,$password
 $afsvc = "$domain\ds-piaf-svc$"
 $pidassvc = "$domain\ds-pidas-svc$"
 
-$cmd = .\PI-Server_2018-SP3-Patch-1_.exe /passive ADDLOCAL=PIDataArchive,PITotal,FD_AppsServer,PiSqlDas.Rtqp,FD_AFExplorer,FD_AFAnalysisMgmt,FD_AFDocs,PiPowerShell,pismt3  `
-PIHOME="D:\Program Files (x86)\PIPC" PIHOME64="D:\Program Files\PIPC" AFSERVER="$env:computername" SENDTELEMETRY="1" AFSERVICEACCOUNT="$afsvc" FDSQLDBNAME="PIFD" FDSQLDBSERVER="$sqlserver" `
+$region = $zone.Substring(0,$zone.Length-2)
+$smn = gcloud compute forwarding-rules describe fwd-pisvr-1 --region=$region --flatten=IPAddress
+$ip = $smn[1].trim()
+$cmd = .\PI-Server_2018-SP3-Patch-3_.exe /passive ADDLOCAL=PIDataArchive,PITotal,FD_AppsServer,PiSqlDas.Rtqp,FD_AFExplorer,FD_AFAnalysisMgmt,FD_AFDocs,PiPowerShell,pismt3  `
+PIHOME="D:\Program Files (x86)\PIPC" PIHOME64="D:\Program Files\PIPC" AFSERVER="$ip" SENDTELEMETRY="1" AFSERVICEACCOUNT="$afsvc" FDSQLDBNAME="PIFD" FDSQLDBSERVER="$sqlserver" `
 AFACKNOWLEDGEBACKUP="1" PISQLDAS_SERVICEACCOUNT="$pidassvc" PI_LICDIR="$location\License" `
 PI_INSTALLDIR="D:\Program Files\PI" PI_EVENTQUEUEDIR="D:\Program Files\PI\Queue" PI_ARCHIVESIZE="2048" PI_AUTOARCHIVEROOT="$env:computername"
 
@@ -344,7 +368,10 @@ Set-PIDatabaseSecurity -Connection $PIDataArchiveConnection -Name "PIUSER" -Secu
 
 #Add-ADGroupMember -Identity PIWebAppsADGroup -Members ds-pivs-svc$
 #Create OMF_DB database
-$hostname = "$env:computername"
+$region = $zone.Substring(0,$zone.Length-2)
+$smn = gcloud compute forwarding-rules describe fwd-pisvr-1 --region=$region --flatten=IPAddress
+$ip = $smn[1].trim()
+$hostname = $ip
 $afServer = Get-AFServer -Name $hostname -ErrorAction Stop
 $afConnection = Connect-AFServer -AFServer $afServer -ErrorAction Stop
 Add-AFDatabase -Name OMF_DB -AFServer $afConnection    
@@ -358,10 +385,20 @@ try{
     if($zone -eq $zone1){
         $zone -eq $zone1
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=af1Ready="True"
+        Start-Sleep -s 5
+        while(!($flag = gcloud compute instances describe pibastion1 --format='value[](metadata.items.af1Ready)' --zone $zone1)){
+            gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=af1Ready="True"
+            Start-Sleep -s 5
+        }
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=af1="$env:computername"
     }elseif($zone -eq $zone2){
         $zone -eq $zone2
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=af2Ready="True"
+        Start-Sleep -s 5
+        while(!($flag = gcloud compute instances describe pibastion1 --format='value[](metadata.items.af2Ready)' --zone $zone1)){
+            gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=af2Ready="True"
+            Start-Sleep -s 5
+        }
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=af2="$env:computername"
     }
 }catch{
@@ -691,17 +728,25 @@ if($zone -eq $zone1){
     .\SendPrimaryPublicCertToSecondaries.ps1 $PIPrimaryName $storePath $PISecondaryNames 
     .\SendSecondaryPublicCertToPrimary.ps1 $PIPrimaryName $PISecondaryNames $storePath
 
-
+    $region = $zone.Substring(0,$zone.Length-2)
+    $smn = gcloud compute forwarding-rules describe fwd-pisvr-1 --region=$region --flatten=IPAddress
+    $ip = $smn[1].trim()
+    $machine_domain = -join($ip,".",$domain)
+    setspn -s AFServer/$ip $domain\ds-piaf-svc$
+    setspn -s AFServer/$machine_domain $domain\ds-piaf-svc$ 
     ############################# PI Collective Refresh Done #############################
-
+    $smn = gcloud compute forwarding-rules describe fwd-pisvr-1 --region=$region --flatten=IPAddress
+    $ip = $smn[1].trim()
+    $af = Get-AFServer -Name $ip
+    Set-AFServer -NewName "PIAF_Server" -AFServer $af 
 
     ######################################### PI Collective Code Finished #########################################
 
 
     Write-Host "Out of sleep. Creating Collective_Success.txt file"
     #Create sucess file flag for AF server
-    New-Item D:\temp\Collective_Success.txt
-    gsutil cp D:\temp\Collective_Success.txt gs://$storage/Collective_Success.txt
+    New-Item D:\temp\collective_success.txt
+    gsutil cp D:\temp\collective_success.txt gs://$storage/collective_success.txt
 }
   
 
@@ -869,15 +914,15 @@ foreach($secondary in $secondaries)
 '@
 $sectoprim | out-file D:\temp\SendSecondaryPublicCertToPrimary.ps1
 
-# # Services to start if not already running after every boot
-# $services = @'
-# #Check if PI services are running. If not then start the services.
-# $piservices = @('AFService','PIAnalysisManager','piarchss','pibackup','pibasess','pibufss','PINotificationsService','PISqlDas.RTQP','pisqlss')
-# foreach ($piservice in $piservices){
-#     get-service "$piservice" | Where {$_.Status -ne 'Running'} | start-service
-# }
-# '@
-# $services | out-file D:\temp\services.ps1
+# Services to start if not already running after every boot
+$services = @'
+#Check if PI services are running. If not then start the services.
+$piservices = @('AFService','piarchss','pibackup','pibasess','pibufss','PISqlDas.RTQP','pisqlss')
+foreach ($piservice in $piservices){
+    get-service "$piservice" | Where {$_.Status -ne 'Running'} | start-service
+    }
+'@
+$services | out-file D:\temp\services.ps1
 
     Write-Host("Scheduling gMSA Task")
     $Trigger= New-ScheduledTaskTrigger -AtStartup
@@ -885,11 +930,11 @@ $sectoprim | out-file D:\temp\SendSecondaryPublicCertToPrimary.ps1
     Register-ScheduledTask -TaskName "gMSA-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
 
 
-    # #Schedule a task to check if pi services are running after every boot.
-    # Write-Host("Scheduling Services to restart")
-    # $Trigger= New-ScheduledTaskTrigger -AtStartup
-    # $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\services.ps1" 
-    # Register-ScheduledTask -TaskName "services-restart-at-every-boot" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
+    #Schedule a task to check if pi services are running after every boot.
+    Write-Host("Scheduling Services to restart")
+    $Trigger= New-ScheduledTaskTrigger -AtStartup
+    $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\services.ps1" 
+    Register-ScheduledTask -TaskName "services-restart-at-every-boot" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
 
 
     Restart-Computer

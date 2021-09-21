@@ -1,19 +1,5 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
 
+# Getting the projet details and finding zone.
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
 $zone2 = gcloud projects describe $project --format='value[](labels.zone2)'
@@ -36,8 +22,7 @@ while(!($flag = gcloud compute instances describe pibastion1 --format='value[](m
 $domain = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.domain-name)' --zone $zone
 $storage = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.storage)' --zone $zone
 
-#check if af server insallation is complete
-
+#check if AF Server Installation is complete
 try{
     if (Get-ScheduledTask -taskname gMSA-install | ? state -eq Ready){
         write-host "Task is enable..will run now"
@@ -51,6 +36,7 @@ try{
     }
 }
 
+# Check if machine is domain joined. If yes then exit and do nothing.
 Write-Host("Checking domain join")
 $flag = (Get-WmiObject -Class Win32_ComputerSystem).PartOfDomain
 
@@ -80,19 +66,23 @@ if ($flag -eq "True"){
 
     # Install Chrome Browser
     $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
-    function Set-ChromeAsDefaultBrowser {
-        Add-Type -AssemblyName 'System.Windows.Forms'
-        Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
-        Sleep 2
-        [System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
-    } 
-    Set-ChromeAsDefaultBrowser
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    # function Set-ChromeAsDefaultBrowser {
+    #     Add-Type -AssemblyName 'System.Windows.Forms'
+    #     Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
+    #     Sleep 2
+    #     [System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
+    # } 
+    # Set-ChromeAsDefaultBrowser
 
 
     New-Item -Path 'C:\temp\' -ItemType Directory
     Set-Location -Path C:\temp\
     gsutil -m cp -r gs://$storage/pivision/* C:\temp\
-    
+    ## 
+    gsutil -m cp -r gs://$storage/piserver/* C:\temp\
+   
+
     # Install 7zip to extract installer
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Install-PackageProvider -Name NuGet -Force
@@ -100,7 +90,7 @@ if ($flag -eq "True"){
     Install-Module -Name 7Zip4Powershell -RequiredVersion 1.9.0
     
     #Extract the installar to the staging location
-    Expand-7Zip -ArchiveFileName .\PI-Vision_2019-Patch-1_.exe -TargetPath '.\'
+    Expand-7Zip -ArchiveFileName .\PI-Vision_2020_.exe -TargetPath '.\'
 
     Write-Host "Creating temp directory for web api installation files"
     New-Item -ItemType directory -Path C:\temp
@@ -113,6 +103,7 @@ if ($flag -eq "True"){
 
 $gMSA = @'
 
+# Getting the projet details and finding zone.
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
 $zone2 = gcloud projects describe $project --format='value[](labels.zone2)'
@@ -200,8 +191,9 @@ $ConfigInstance = $env:computername
 #Parameters for silent.ini
 $MyPIServer = "$afserver"
 $MyAFServer = "$afserver"
+$name = $env:COMPUTERNAME.ToLower()
 $ServiceAccountUsername = "$domain\ds-pivs-svc$"
-$machine_name = -join($env:computername,".",$ServiceAccountUsername)
+$machine_name = -join($name,".",$domain)
 
 # Added these lines for Enabling Kerberos delegation 
 
@@ -210,8 +202,8 @@ Import-Module WebAdministration
 cd 'IIS:\Sites\Default Web Site\PIVision\'  
 Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -Location 'Default Web Site/PIVision' -filter /system.webServer/security/authentication/windowsAuthentication -name useAppPoolCredentials  -value True
 #Step2
-setspn -S $env:computername $ServiceAccountUsername
-setspn -S $machine_name $ServiceAccountUsername
+setspn -S HTTP/$name $ServiceAccountUsername
+setspn -S HTTP/$machine_name $ServiceAccountUsername 
 
 Set-Location -Path C:\Windows\system32
 
@@ -372,18 +364,110 @@ Invoke-Command -FilePath c:\temp\chrome.ps1 -ComputerName 'pibastion1'
 New-Item -ItemType File -path C:\temp\pivision_success.txt
 gsutil -m cp c:\temp\pivision_success.txt gs://$storage/pivision_success.txt
 
+
+$AdminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}"
+$UserKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}"
+Set-ItemProperty -Path $AdminKey -Name "IsInstalled" -Value 0 -Force
+Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0 -Force
+Rundll32 iesetup.dll, IEHardenLMSettings
+Rundll32 iesetup.dll, IEHardenUser
+Rundll32 iesetup.dll, IEHardenAdmin
+Write-Host "IE Enhanced Security Configuration (ESC) has been disabled."
+iisreset
+
+$project = gcloud config list --format=value'(core.project)'
+$zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
+$zone2 = gcloud projects describe $project --format='value[](labels.zone2)'
+
+$data = gcloud compute instances list --project $project --format=value'(NAME,ZONE)' | findstr $env:COMPUTERNAME.ToLower()
+$zone = $data.split()[1]
+
+if($zone -eq $zone1){
+    $zone -eq $zone1
+}elseif($zone -eq $zone2){
+    $zone -eq $zone2
+}
+Set-Location -Path C:\temp\PIVision_*
+$afserver = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.ilb)' --zone $zone 
+$domain = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.domain-name)' --zone $zone
+$password1 = gcloud secrets versions access 1 --secret=osi-pi-secret
+$password1 = [string]::join("",($password1.Split("`n")))
+$password = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
+$username = "$domain\setupadmin"
+$cred = New-Object System.Management.Automation.PSCredential($username,$password)
+$location = Get-Location
+$storage = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.storage)' --zone $zone
+
+while(!($flag =gsutil stat gs://$storage/intdb_success.txt))
+    {
+        Start-Sleep -s 5   
+    }
+
+$project = gcloud config list --format=value'(core.project)'
+$zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
+$zone2 = gcloud projects describe $project --format='value[](labels.zone2)'
+$data = gcloud compute instances list --project $project --format=value'(NAME,ZONE)' | findstr $env:COMPUTERNAME.ToLower()
+$zone = $data.split()[1]
+if($zone -eq $zone1){
+    $zone -eq $zone1
+}elseif($zone -eq $zone2){
+    $zone -eq $zone2
+}
+$domain = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.domain-name)' --zone $zone
+$password1 = gcloud secrets versions access 1 --secret=osi-pi-secret
+$password1 = [string]::join("",($password1.Split("`n")))
+$password = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
+$password2 = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()}
+$username = "$domain\setupadmin"
+$cred = New-Object System.Management.Automation.PSCredential($username,$password)
+$storage = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.storage)' --zone $zone
+
+Set-Location C:\temp
+$cmd = .\PI-Server_2018-SP3-Patch-3_.exe /passive ADDLOCAL=PiPowerShell   SENDTELEMETRY="1" AFACKNOWLEDGEBACKUP="1" PI_ARCHIVESIZE="2048" PI_AUTOARCHIVEROOT="$env:computername"
+Start-Sleep -s 300
+
+# Powershell.exe -executionpolicy remotesigned -File  "c:\temp\collective_trigger.ps1" 
+$Trigger= New-ScheduledTaskTrigger -AtStartup
+$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument  "c:\temp\collective_trigger.ps1"
+Register-ScheduledTask -TaskName "collect_trigger" -Trigger $Trigger -User $username -Password $password1 -Action $Action -RunLevel Highest -Force
 Disable-ScheduledTask -TaskName "vision-install"
-
+Restart-Computer
 '@
-$vision_install | Out-File c:\temp\vision.ps1    
+$vision_install | Out-File c:\temp\vision.ps1       
 
-$chrome = @'
-Add-Type -AssemblyName 'System.Windows.Forms'
-Start-Process $env:windir\system32\control.exe -ArgumentList '/name Microsoft.DefaultPrograms /page pageDefaultProgram\pageAdvancedSettings?pszAppName=google%20chrome'
-Start-Sleep -s 10
-[System.Windows.Forms.SendKeys]::SendWait("{TAB} {ENTER} {TAB}")
+$collective_trigger = @'
+
+$project = gcloud config list --format=value'(core.project)'
+$zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
+$zone2 = gcloud projects describe $project --format='value[](labels.zone2)'
+$data = gcloud compute instances list --project $project --format=value'(NAME,ZONE)' | findstr $env:COMPUTERNAME.ToLower()
+$zone = $data.split()[1]
+if($zone -eq $zone1){
+    $zone -eq $zone1
+}elseif($zone -eq $zone2){
+    $zone -eq $zone2
+}
+$domain = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.domain-name)' --zone $zone
+$password1 = gcloud secrets versions access 1 --secret=osi-pi-secret
+$password1 = [string]::join("",($password1.Split("`n")))
+$password = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
+$password2 = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()}
+$username = "$domain\setupadmin"
+$cred = New-Object System.Management.Automation.PSCredential($username,$password)
+$storage = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.storage)' --zone $zone
+
+Set-Location C:\temp
+$names = gcloud compute instances list --filter pisvr* --format="value(name)"
+$af_path =  -join($names[0],'.',$domain)
+Add-PIDataArchiveConnectionConfiguration -Name 'PIDA_Collective' -Path $af_path
+$PIDataArchive = Get-PIDataArchiveConnectionConfiguration -Name 'PIDA_Collective' -ErrorAction Stop 
+Connect-PIDataArchive -PIDataArchiveConnectionConfiguration $PIDataArchive -ErrorAction Stop 
+Set-PIDataArchiveConnectionConfiguration -PIDataArchiveConnectionConfiguration $PIDataArchive -Default
+$afserver = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.ilb)' --zone $zone 
+Remove-PIDataArchiveConnectionConfiguration -Name $afserver 
+Disable-ScheduledTask -TaskName "collect_trigger"
 '@
-$chrome | Out-File c:\temp\chrome.ps1    
+$collective_trigger | Out-File c:\temp\collective_trigger.ps1  
 
     Write-Host("Scheduling integrator Task")
     $Trigger= New-ScheduledTaskTrigger -AtStartup
