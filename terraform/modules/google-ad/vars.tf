@@ -1,5 +1,8 @@
+## Do not hardcode values below , Keep default as null for to be fetched from TFVars##
+
+
 variable "ad-dn" {
-  default = "osi-pi-test.com"
+  default = "null"
 }
 
 variable "vpc-out"{
@@ -31,10 +34,15 @@ variable "secret_id" {
   default = "osi-pi-secret"
 }
 
+
 variable "subnet-out" {
   default = "null"
 }
 
 variable "architecture" {
   default = "null"
+}
+
+variable "OS" {
+  description = "Please enter OS of your deployment machine"
 }

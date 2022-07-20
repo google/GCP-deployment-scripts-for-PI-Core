@@ -31,6 +31,11 @@ if ($flag -eq "True"){
     $password1 = [string]::join("",($password1.Split("`n")))
     $password = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
     $password2 = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()}
+
+    # Install Chrome Browser and make it default
+    $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    Write-Host "Chrome installation complete"
     
     # Create credentials object 
     $cred = New-Object System.Management.Automation.PSCredential($username,$password)
@@ -49,7 +54,7 @@ if ($flag -eq "True"){
     Write-Host "Creating temp directory for installation files"
     New-Item -ItemType directory -Path C:\temp
     Set-Location -Path C:\temp
-
+    
 # Create gMSA.ps1 file to be executed by scheduler on the next boot.
 $MultilineComment = @'
 # Getting the projet details and finding zone. Needed for updating metadata in bastion
@@ -93,6 +98,7 @@ New-ADServiceAccount -Name ds-piwe-svc -PrincipalsAllowedToRetrieveManagedPasswo
 
 # Update bastion metadata to trigger script executaion of SQL server
 gcloud compute instances add-metadata $env:computername.ToLower() --zone=$zone1 --metadata=bastionReady="True"
+Write-Host "Bastion ready key set for script executaion of SQL server"
 
 # Disable gMSA-install task so that it wont execute on the next boot.
 Disable-ScheduledTask -TaskName "gMSA-install"

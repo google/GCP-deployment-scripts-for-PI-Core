@@ -62,8 +62,11 @@ if ($flag -eq "True"){
 
     Install-WindowsFeature -Name "RSAT-AD-Tools" -IncludeAllSubFeature -IncludeManagementTools 
 
+    Install-WindowsFeature -Name FS-Fileserver
+    Install-WindowsFeature Failover-Clustering -IncludeManagementTools
+
     # Install Windows Identity Foundation 3.5 feature
-    Install-WindowsFeature Windows-Identity-Foundation 
+    Install-WindowsFeature Windows-Identity-Foundation     
 
     # Install Chrome Browser
     $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
@@ -72,6 +75,9 @@ if ($flag -eq "True"){
     netsh advfirewall firewall add rule name="Open Port 5022 for Availability Groups" dir=in action=allow protocol=TCP localport=5022
     netsh advfirewall firewall add rule name="Open Port 1433 for SQL Server" dir=in action=allow protocol=TCP localport=1433
     netsh advfirewall firewall add rule name="ICMP Allow incoming V4 echo request" protocol="icmpv4:8,any" dir=in action=allow
+    
+    #$addlocaladmin = Add-LocalGroupMember -Group "Administrators" -Member "$domain\setupadmin"
+    #start-process powershell -Credential $cred -ArgumentList "-command (Invoke-Command -ScriptBlock {$addlocaladmin})"
 
     New-Item -Path 'C:\temp\piserver\' -ItemType Directory
     Set-Location C:\temp\piserver
@@ -143,6 +149,8 @@ if ($flag -eq "True"){
         $sqlServer.AddToRole("dbcreator")
         $sqlServer.AddToRole("securityadmin")
     }
+    
+
 
     New-Item -ItemType directory -Path C:\install
     Set-Location -Path C:\install
@@ -225,13 +233,9 @@ if($SQLServer1IsReady -eq $False) {
     Write-Error "$node1 is not responding. Was it deployed correctly?"
 }
 
-Install-WindowsFeature -Name FS-Fileserver
-Install-WindowsFeature Failover-Clustering -IncludeManagementTools
 
 #create a cluster
 New-Cluster -Name $nameWSFC -Node $node1, $node2 -NoStorage -StaticAddress $ipWSFC1, $ipWSFC2
-
-
 
 #Add listener as computer object
 New-ADComputer -Name "sql-server" -SamAccountName "sql-server" -Path "OU=Computers,OU=Cloud,$domainPath"

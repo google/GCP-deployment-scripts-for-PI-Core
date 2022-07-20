@@ -172,10 +172,13 @@ netsh advfirewall firewall add rule name="PI Integrator 444" dir=in action=allow
 
 
 Write-Host("Scheduling piserver Task")
-$Trigger= New-ScheduledTaskTrigger -AtStartup
+$time = [DateTime]::Now.AddMinutes(5)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+#Trigger changed for 2019 support
+#$Trigger= New-ScheduledTaskTrigger -AtStartup
 $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\aninstall.ps1" 
 Register-ScheduledTask -TaskName "an-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
-Disable-ScheduledTask -TaskName "gMSA-install"
+#Disable-ScheduledTask -TaskName "gMSA-install"
 
 Start-Sleep -Seconds 10
 Restart-Computer -Force
@@ -207,7 +210,7 @@ $storage = gcloud compute instances describe $env:computername.ToLower() --forma
 $afserver = gcloud compute instances describe $env:computername.ToLower() --format='value[](metadata.items.ilb)' --zone $zone
 $analysis_svc = "$domain\ds-pian-svc$"
 $notification_svc = "$domain\ds-pino-svc$"
-
+Disable-ScheduledTask -TaskName "gMSA-install"
 
 if($zone -eq $zone1){
     while(!($flag = gcloud compute instances describe pibastion1 --format='value[](metadata.items.an2Ready)' --zone $zone1)){
@@ -227,7 +230,7 @@ New-Item D:\temp\an_success.txt
 gsutil cp D:\temp\an_success.txt gs://$storage/an_success.txt
 
 
-try{
+#try{
     if($zone -eq $zone1){
         $zone -eq $zone1
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=an1Ready="True"
@@ -237,9 +240,9 @@ try{
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=an2Ready="True"
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=an2Name="$env:computername"
     }
-}catch{
-    $Error[0] | Out-Null
-}
+#}catch{
+#    $Error[0] | Out-Null
+#}
 
 # Write-Host("Scheduling integrator Task")
 # $Trigger= New-ScheduledTaskTrigger -AtStartup
@@ -454,7 +457,7 @@ gsutil cp D:\temp\buff_success.txt gs://$storage/buff_success.txt
 $Trigger= New-ScheduledTaskTrigger -AtStartup
 $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument  "D:\temp\collective_trigger.ps1"
 Register-ScheduledTask -TaskName "collect_trigger" -Trigger $Trigger -User $username -Password $password1 -Action $Action -RunLevel Highest -Force
-Restart-Computer
+Restart-Computer -Force
 '@
 $aninstall | out-file D:\temp\aninstall.ps1
 
@@ -906,7 +909,10 @@ foreach ($piservice in $piservices){
 $services | out-file D:\temp\services.ps1
 
     Write-Host("Scheduling gMSA Task")
-    $Trigger= New-ScheduledTaskTrigger -AtStartup
+    $time = [DateTime]::Now.AddMinutes(2)
+    $Trigger= New-ScheduledTaskTrigger -Once -At $time
+    #Trigger changed for 2019 support
+    #$Trigger= New-ScheduledTaskTrigger -AtStartup
     $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\gMSA.ps1" 
     Register-ScheduledTask -TaskName "gMSA-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
 

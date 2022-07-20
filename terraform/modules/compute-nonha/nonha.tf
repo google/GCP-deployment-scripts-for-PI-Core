@@ -8,19 +8,19 @@ data "google_compute_zones" "zones"{
 
 
 ##################
-## Image MS SQL ##
+## Image MS SQL ## changed to 2019 from 2016
 ##################
 data "google_compute_image" "osi-sql-image" {
-  family  = "sql-std-2016-win-2016"
+  family  = "sql-std-2017-win-2019"
   project = "windows-sql-cloud"
 }
 
 
 #################################
-## Image Microsoft Server 2016 ##
+## Image Microsoft Server 2019 ## changed to 2019 from 2016
 #################################
 data "google_compute_image" "others" {
-  family  = "windows-2016"
+  family  = "windows-2019"
   project = "windows-cloud"
 }
 
@@ -179,7 +179,7 @@ resource "google_compute_instance_template" "it-pivii" {
 
   disk {
     source_image = data.google_compute_image.others.self_link
-    auto_delete  = true
+    auto_delete  = false
     boot         = true
     type         = "pd-standard"
     disk_size_gb = 50
@@ -230,6 +230,13 @@ resource "google_compute_instance_group_manager" "mig-pivii" {
   named_port {
     name = "https"
     port = 443
+  }
+
+  #Preserving state via stateful disk since no autoscaling present
+  
+  stateful_disk {
+  device_name    = "persistent-disk-0"
+  delete_rule    = "NEVER"
   }
 
   version {

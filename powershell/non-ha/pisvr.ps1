@@ -40,6 +40,11 @@ if ($flag -eq "True"){
     $password = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
     $password2 = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()}
     $username = "$domain\setupadmin"
+    
+    # Install Chrome Browser and make it default
+    $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    Write-Host "Chrome installation complete"
 
     # Create credentials object 
     $cred = New-Object System.Management.Automation.PSCredential($username,$password)
@@ -54,6 +59,8 @@ if ($flag -eq "True"){
     New-Item -Path 'D:\temp\' -ItemType Directory
     Set-Location D:\temp\
     gsutil -m cp -r gs://$storage/piserver/* D:\temp\
+
+    
     
     #Open firewall ports needed for communication between pi components
     netsh advfirewall firewall add rule name="Open port for af server inbound" dir=in action=allow protocol=TCP localport=5457
@@ -112,9 +119,14 @@ Invoke-Command -ComputerName pisql-1 -ScriptBlock{Add-LocalGroupMember -Group "A
 
 # Scheudle piserver installation task which will run on the next boot 
 Write-Host("Scheduling piserver Task")
-$Trigger= New-ScheduledTaskTrigger -AtStartup
+$time = [DateTime]::Now.AddMinutes(2)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+#Trigger changed for 2019 support
+#$Trigger= New-ScheduledTaskTrigger -AtStartup 
 $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\piserver.ps1" 
-Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
 
 # Disable gMSA-install task.
 Disable-ScheduledTask -TaskName "gMSA-install"

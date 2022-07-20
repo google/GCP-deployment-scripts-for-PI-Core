@@ -116,9 +116,14 @@ Import-Module ActiveDirectory
 Set-ADServiceAccount -Identity ds-pibufss-svc -PrincipalsAllowedToRetrieveManagedPassword omf_group
 
 Write-Host "Scheduling OMF installation Task"
-$Trigger= New-ScheduledTaskTrigger -AtStartup
+$time = [DateTime]::Now.AddMinutes(2)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+#Trigger changed for 2019 support
+#$Trigger= New-ScheduledTaskTrigger -AtStartup
 $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "C:\temp\installOMF.ps1" 
-Register-ScheduledTask -TaskName "omf-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+Register-ScheduledTask -TaskName "omf-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
 
 Disable-ScheduledTask -TaskName "gMSA-install"
 
@@ -298,9 +303,14 @@ while(!($flag =gsutil stat gs://$storage/intdb_success.txt))
     
 
     # Used to execute collective trigger
-    $Trigger= New-ScheduledTaskTrigger -AtStartup
+    $time = [DateTime]::Now.AddMinutes(2)
+    $Trigger= New-ScheduledTaskTrigger -Once -At $time
+    #Trigger changed for 2019 support
+    #$Trigger= New-ScheduledTaskTrigger -AtStartup
     $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument  "c:\temp\collective_trigger.ps1"
-    Register-ScheduledTask -TaskName "collect_trigger" -Trigger $Trigger -User $username -Password $password1 -Action $Action -RunLevel Highest -Force
+    $Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+    $Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+    Register-ScheduledTask -TaskName "collect_trigger" -Trigger $Trigger -User $username -Password $password1 -Action $Action -RunLevel Highest -Force -Settings $Stset
     Restart-Computer
 
 # Disable-ScheduledTask -TaskName "omf-install"

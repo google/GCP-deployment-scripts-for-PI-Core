@@ -44,6 +44,11 @@ if ($flag -eq "True"){
     $password = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
     $cred = New-Object System.Management.Automation.PSCredential($username,$password)
 
+    # Install Chrome Browser and make it default
+    $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    Write-Host "Chrome installation complete"
+
     # Prepare disk for pivision installation 
     Get-Disk | Where-Object partitionstyle -eq "raw" | Initialize-Disk -PartitionStyle GPT -PassThru | New-Partition -DriveLetter D -UseMaximumSize | Format-Volume -FileSystem NTFS -NewFileSystemLabel "disk1" -Confirm:$false
     
@@ -69,6 +74,8 @@ if ($flag -eq "True"){
     Install-PackageProvider -Name NuGet -Force
     Set-PSRepository PSGallery -InstallationPolicy Trusted
     Install-Module -Name 7Zip4Powershell -RequiredVersion 1.9.0
+
+    
     
     #Extract the installar to the staging location
     Expand-7Zip -ArchiveFileName .\PI-Vision_2020_.exe -TargetPath '.\'
@@ -98,10 +105,15 @@ Set-ADServiceAccount -Identity ds-piwe-svc -PrincipalsAllowedToRetrieveManagedPa
 
 # Scheudle vision installation task on the next boot
 Write-Host("Scheduling piserver Task")
-$Trigger= New-ScheduledTaskTrigger -AtStartup
-$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "c:\temp\vision.ps1" 
-Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
-
+#$Trigger= New-ScheduledTaskTrigger -AtStartup  #trigger getting failed in 2019
+$time = [DateTime]::Now.AddMinutes(2)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "c:\temp\vision.ps1"
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+# 2019 change test
+Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
+Write-Host("************piserver Task scheudled************")
 # Disable gMSA-install task
 Disable-ScheduledTask -TaskName "gMSA-install"
 Unregister-ScheduledTask -TaskName "gMSA-install" -Confirm:$false
@@ -359,6 +371,9 @@ netsh advfirewall firewall add rule name="PI Integrator 444" dir=in action=allow
 Invoke-Command -FilePath c:\temp\db.ps1 -ComputerName 'pisql-1'
 
 Remove-Item C:\temp\*.ps1*
+
+Restart-Computer
+
 '@
 $vision_install | Out-File c:\temp\vision.ps1    
 

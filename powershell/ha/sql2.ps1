@@ -88,7 +88,7 @@ if ($flag -eq "True"){
     # Set-ChromeAsDefaultBrowser
 
 
-    Write-Host "Creating new direcroty for isntall files"
+    Write-Host "Creating new direcroty for install files"
     New-Item -ItemType directory -Path C:\install
     Set-Location -Path C:\install
 
@@ -266,6 +266,23 @@ GO"
 '@
 
 $af_sql | Out-File C:\install\af_sql.ps1
+
+
+
+$dbrestarts = @'
+Write-Host "restarting for database sync"
+Restart-Computer
+'@
+$dbrestarts | Out-File C:\install\dbrestarts.ps1
+
+Write-Host("Scheduling dbrestarts Task")
+$time = [DateTime]::Now.AddMinutes(90)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "C:\install\dbrestarts.ps1"
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+Register-ScheduledTask -TaskName "Restart-server" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
+
 
 Write-Host("Scheduling Services every 1 minute")
 $repeat = (New-TimeSpan -Minutes 1)

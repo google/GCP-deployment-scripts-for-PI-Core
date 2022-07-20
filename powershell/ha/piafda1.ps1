@@ -1,5 +1,5 @@
 
-# Getting the projet details and finding zone.
+# Getting the projet details and finding zone. pisvr
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
 $zone2 = gcloud projects describe $project --format='value[](labels.zone2)'
@@ -161,12 +161,17 @@ Invoke-Command -ComputerName sql-server -ScriptBlock{Add-LocalGroupMember -Group
 
 # Scheudle piserver installation task which will run on the next boot 
 Write-Host("Scheduling piserver Task")
-$Trigger= New-ScheduledTaskTrigger -AtStartup
-$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\piserver.ps1" 
-Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
+$time = [DateTime]::Now.AddMinutes(3)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+#Trigger changed for 2019 support
+#$Trigger= New-ScheduledTaskTrigger -AtStartup
+$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\piserver.ps1"
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
 
 
-# Disable gMSA-install task.
+# Disable gMSA-install task. 
 Disable-ScheduledTask -TaskName "gMSA-install"
 #To be changed
 # Unregister-ScheduledTask -TaskName "gMSA-install" -Confirm:$false
@@ -244,10 +249,20 @@ Disable-ScheduledTask -TaskName "piserver-install"
 # Unregister-ScheduledTask -TaskName "piserver-install" -Confirm:$false
 
 # Schedule task for configuration of pi identities
-Write-Host("Scheduling PI identities Task")
-$Trigger= New-ScheduledTaskTrigger -AtStartup
-$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\identities.ps1" 
-Register-ScheduledTask -TaskName "identities-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
+#$time = [DateTime]::Now.AddMinutes(3)
+$time1 = [DateTime]::Now.AddMinutes(5)
+$time2 = [DateTime]::Now.AddMinutes(95)
+$trigger = @(
+    $(New-ScheduledTaskTrigger -At $time1 -Once),
+    $(New-ScheduledTaskTrigger -At $time2 -Once)
+)
+#$Trigger= New-ScheduledTaskTrigger -Once -At $time
+#Trigger changed for 2019 support
+#$Trigger= New-ScheduledTaskTrigger -AtStartup
+$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\identities.ps1"
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+Register-ScheduledTask -TaskName "identities-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
 
 Restart-Computer
 
@@ -366,22 +381,26 @@ Set-PIDatabaseSecurity -Connection $PIDataArchiveConnection -Name "PITRUST" -Sec
 Set-PIDatabaseSecurity -Connection $PIDataArchiveConnection -Name "PITUNING" -Security "piadmins: A(r,w)" -ErrorAction SilentlyContinue
 Set-PIDatabaseSecurity -Connection $PIDataArchiveConnection -Name "PIUSER" -Security "piadmins: A(r,w) | PIWorld: A(r) | PI Users: A(r) | PI Web Apps: A(r)" -ErrorAction SilentlyContinue
 
-#Add-ADGroupMember -Identity PIWebAppsADGroup -Members ds-pivs-svc$
-#Create OMF_DB database
-$region = $zone.Substring(0,$zone.Length-2)
-$smn = gcloud compute forwarding-rules describe fwd-pisvr-1 --region=$region --flatten=IPAddress
-$ip = $smn[1].trim()
-$hostname = $ip
-$afServer = Get-AFServer -Name $hostname -ErrorAction Stop
-$afConnection = Connect-AFServer -AFServer $afServer -ErrorAction Stop
-Add-AFDatabase -Name OMF_DB -AFServer $afConnection    
+# Start-Sleep -s 200
+# #Add-ADGroupMember -Identity PIWebAppsADGroup -Members ds-pivs-svc$
+# #Create OMF_DB database
+# $region = $zone.Substring(0,$zone.Length-2)
+# $smn = gcloud compute forwarding-rules describe fwd-pisvr-1 --region=$region --flatten=IPAddress
+# $ip = $smn[1].trim()
+# $hostname = $ip
+# Start-Sleep -s 200
+# $afServer = Get-AFServer -Name $hostname -ErrorAction Stop
+# $afConnection = Connect-AFServer -AFServer $afServer -ErrorAction Stop
+# Add-AFDatabase -Name OMF_DB -AFServer $afConnection    
 
 # The PowerShell script to gMSA account ds-pibufss-svc$ to be member of local group “PI Buffer Writers” and “PI Buffering Administrators” on PISRV-1
 Add-LocalGroupMember -Group "PI Buffer Writers" -Member "$domain\ds-pibufss-svc$" 
 Add-LocalGroupMember -Group "PI Buffering Administrators" -Member "$domain\ds-pibufss-svc$" 
+Start-Sleep -s 60
 
-
-try{
+Write-Host "Meta data setting phase"
+Start-Sleep -s 300
+#try{
     if($zone -eq $zone1){
         $zone -eq $zone1
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=af1Ready="True"
@@ -401,8 +420,38 @@ try{
         }
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=af2="$env:computername"
     }
-}catch{
-    $Error[0] | Out-Null
+
+Write-Host "Meta data setting Complete"
+
+#}catch{
+#    $Error[0] | Out-Null
+#}
+
+
+Start-Sleep -s 120
+#Add-ADGroupMember -Identity PIWebAppsADGroup -Members ds-pivs-svc$
+#Create OMF_DB database
+$region = $zone.Substring(0,$zone.Length-2)
+$smn = gcloud compute forwarding-rules describe fwd-pisvr-1 --region=$region --flatten=IPAddress
+$ip = $smn[1].trim()
+$hostname = $ip
+For ($i=0; $i -le 2; $i++) {
+    try {
+        $afServer = Get-AFServer -Name $hostname -ErrorAction Stop
+        $afConnection = Connect-AFServer -AFServer $afServer -ErrorAction Stop
+        Add-AFDatabase -Name OMF_DB -AFServer $afConnection -WarningAction Stop -ErrorAction Stop
+        } 
+    catch {
+        $Error[0] | Out-Null
+        if( $_.Exception.Message -eq "'OMF_DB' already exists."){
+        Write-Host "Success"
+        $i=2
+        }
+        else{
+        Write-Host "Retrying"
+        Start-Sleep -s 180
+        }
+       }
 }
 
 #Check if AF service is running. If not start the service
@@ -744,14 +793,15 @@ if($zone -eq $zone1){
 
 
     Write-Host "Out of sleep. Creating Collective_Success.txt file"
-    #Create sucess file flag for AF server
+    #Create success file flag for AF server
     New-Item D:\temp\collective_success.txt
     gsutil cp D:\temp\collective_success.txt gs://$storage/collective_success.txt
 }
   
 
 # Disable identities-install
-Disable-ScheduledTask -TaskName "identities-install"
+#Start-Sleep -S 1800
+#Disable-ScheduledTask -TaskName "identities-install"
 
 
 '@

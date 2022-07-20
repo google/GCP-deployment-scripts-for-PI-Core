@@ -8,19 +8,21 @@ data "google_compute_zones" "zones"{
 
 
 ##################
-## Image MS SQL ##
+## Image MS SQL ## changed from 2016 to 2019
 ##################
 data "google_compute_image" "osi-sql-image" {
-  family  = "sql-std-2016-win-2016"
+  family  = "sql-std-2017-win-2019"
+  #family  = "sql-std-2016-win-2016"
   project = "windows-sql-cloud"
 }
 
 
 #################################
-## Image Microsoft Server 2016 ##
+## Image Microsoft Server 2019 ## changed from 2016 to 2019
 #################################
 data "google_compute_image" "others" {
-  family  = "windows-2016"
+  family  = "windows-2019"
+  #family  = "windows-2016"
   project = "windows-cloud"
 }
 

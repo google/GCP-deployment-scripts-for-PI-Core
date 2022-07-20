@@ -4,6 +4,12 @@ provider "google"{
   region = var.region
 }
 
+provider "google-beta" {
+  credentials = file("${var.creds}")
+  project     = var.project_id
+  region = var.region
+}
+
 terraform {
   required_version = ">= 0.13"
 

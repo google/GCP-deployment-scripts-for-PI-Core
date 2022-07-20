@@ -16,6 +16,15 @@ variable "architecture" {
   }
 }
 
+variable "OS" {
+  description = "Please enter OS of your deployment machine"
+
+  validation {
+    condition     = var.OS == "Linux" || var.OS == "Windows" || var.OS == "MacOS"
+    error_message = "The value for OS is case sensitive, please enter \"Windows or Linux or MacOS\"."
+  }
+}
+
 variable "valid_domain" {
   description = "Please enter Yes or No"
 
@@ -57,6 +66,7 @@ variable "ad-cidr"{
 
   validation {
     #condition     = var.ad-cidr == "10.0.0.0/20" || var.ad-cidr == "10.1.0.0/20" || var.ad-cidr == "172.16.0.0/20" || var.ad-cidr == "192.168.0.0/20"
+    #Validation for CIDR check (initial values of IP)
     condition    = substr(var.ad-cidr, 0, 3) == "10." || substr(var.ad-cidr, 0, 7) == "172.16." || substr(var.ad-cidr, 0, 8) == "192.168."
     error_message = "The value for ad-cidr must be a valid \"RFC 1918 range\"."
   }
@@ -67,6 +77,7 @@ variable "compute-multi-cidr" {
 
   validation {
     #condition     = var.compute-multi-cidr == "10.0.0.0/20" || var.compute-multi-cidr == "10.1.0.0/20" ||  var.compute-multi-cidr == "172.16.0.0/20" || var.compute-multi-cidr == "192.168.0.0/20"
+    #Validation for CIDR check (initial values of IP)
     condition    = substr(var.compute-multi-cidr, 0, 3) == "10." || substr(var.compute-multi-cidr, 0, 7) == "172.16." || substr(var.compute-multi-cidr, 0, 8) == "192.168."
     error_message = "The value for ad-cidr must be a valid \"RFC 1918 range\"."
   }

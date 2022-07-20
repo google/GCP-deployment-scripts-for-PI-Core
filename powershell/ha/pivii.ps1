@@ -128,9 +128,15 @@ Add-ADGroupMember -Identity vision_group -Members $env:COMPUTERNAME$
 Set-ADServiceAccount -Identity ds-pivs-svc -PrincipalsAllowedToRetrieveManagedPassword vision_group
 
 Write-Host("Scheduling piserver Task")
-$Trigger= New-ScheduledTaskTrigger -AtStartup
+$time = [DateTime]::Now.AddMinutes(2)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+#Trigger changed for 2019 support
+#$Trigger= New-ScheduledTaskTrigger -AtStartup
 $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "c:\temp\vision.ps1" 
-Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
+Write-Host("piserver Task scheduled")
 Disable-ScheduledTask -TaskName "gMSA-install"
 Restart-Computer
 '@

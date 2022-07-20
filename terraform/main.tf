@@ -19,18 +19,30 @@ data "google_compute_zones" "zones"{
 ###########################
 ## Add Lables to project ##
 ###########################
-resource "null_resource" "project_lables" {
+resource "null_resource" "project_lables1" {
+  count = var.OS == "Windows" ? 1 : 0
 
   provisioner "local-exec" {
     on_failure  = "continue"
     # command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${data.google_compute_zones.zones.names[0]},zone2=${data.google_compute_zones.zones.names[1]},zone3=${data.google_compute_zones.zones.names[2]} --quiet"
     command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${var.zones[0]},zone2=${var.zones[1]},zone3=${var.zones[2]} --quiet"
 
-
-    #below line to be commented for Linux/MacOS
     interpreter = ["PowerShell", "-Command"]
   }
 }
+
+resource "null_resource" "project_lables2" {
+  count = var.OS == "Linux" || var.OS == "MacOS" ? 1 : 0
+
+  provisioner "local-exec" {
+    on_failure  = "continue"
+    # command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${data.google_compute_zones.zones.names[0]},zone2=${data.google_compute_zones.zones.names[1]},zone3=${data.google_compute_zones.zones.names[2]} --quiet"
+    command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${var.zones[0]},zone2=${var.zones[1]},zone3=${var.zones[2]} --quiet"
+
+    #interpreter = ["PowerShell", "-Command"]
+  }
+}
+
 
 
 #####################################
@@ -49,7 +61,7 @@ module "osi-iam-mod" {
   project_id = var.project_id
   sa_email   = data.google_compute_default_service_account.default.email
   tf_sa      = var.tf_sa
-  depends_on = [null_resource.project_lables]
+  depends_on = [null_resource.project_lables1,null_resource.project_lables2]
 }
 
 
@@ -80,6 +92,7 @@ module "osi-google-ad-mod" {
   ad-dn        = var.ad-dn
   ad-region    = var.region
   architecture = var.architecture
+  OS           = var.OS //added for count variable in google-ad.tf
 }
 
 
