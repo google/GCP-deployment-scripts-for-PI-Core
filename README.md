@@ -130,7 +130,9 @@ Prior to the installation, it is recommended that users familiarize themselves w
 
 * [**Google Compute Engine**](https://cloud.google.com/compute/docs) - Computing infrastructure in predefined or custom machine sizes on GCP. Compute Engine offers predefined virtual machine configurations for every need and are used to host PI Core software
 * [**Cloud Load Balancing**](https://cloud.google.com/load-balancing/docs) - Distributes load-balanced compute resources in single region or in multiple regions, and meets high availability requirements. It can put your resources behind a single anycast IP and scale your Cloud Compute resources up or down for your applications
+
 * [**Cloud NAT**](https://cloud.google.com/nat/docs/overview) - Cloud NAT (network address translation) allows Googleâ€™s VM instances without external IP addresses and private Kubernetes Engine clusters to send outbound packets to the internet and receive any corresponding established inbound response packets
+
 * [**Google Managed Active Directory**](https://cloud.google.com/managed-microsoft-ad/docs) - Managed Service for Microsoft Active Directory (AD) is a highly available, hardened GCP service running actual Microsoft AD that allows you to manage authentication and authorization for AD-dependent workloads, automate AD server maintenance and security configuration, and connect any on-premises AD domain to the cloud. *The deployment scripts are created with the assumption that a Customer's AD is on Google Cloud, and not on-premise*
 * [**Cloud VPC**](https://cloud.google.com/vpc/docs/vpc) - Provides connectivity for VM instances, offers native Internal TCP/UDP Load Balancing and proxy systems for Internal HTTP(S) Load Balancing, connects to on-premises networks using Cloud VPN tunnels and Cloud Interconnect attachments, and distributes traffic from Google Cloud external load balancers to backend services
 * [**Cloud Armor**](https://cloud.google.com/armor/docs) - Protects infrastructure and applications from distributed denial-of-service (DDoS) attacks
@@ -293,8 +295,9 @@ Now that you have successfully deployed your PI Core software, the scripts must 
 
     * In your GCP Cloud Console, go to the Cloud Armor page from the navigation menu
     * Select the following policy: **policy-pivii**
-    * To edit the rules there, select the rule that has the following description: **â€œfirst ruleâ€** and click on the edit icon on the right of the table
-    * Under the **Match** section within that page, add your Public IP Address besides the already existing IP. Ensure they are separated by â€œ,â€
+
+    * To edit the rules there, select the rule that has the following description: **“first rule”** and click on the edit icon on the right of the table
+    * Under the **Match** section within that page, add your Public IP Address besides the already existing IP. Ensure they are separated by “,”
     * Update the rule
 
 #### PI Vision Authentication
