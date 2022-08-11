@@ -1,19 +1,3 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
-
 ###############
 ## GCP Zones ##
 ###############
@@ -24,19 +8,19 @@ data "google_compute_zones" "zones"{
 
 
 ##################
-## Image MS SQL ##
+## Image MS SQL ## changed to 2019 from 2016
 ##################
 data "google_compute_image" "osi-sql-image" {
-  family  = "sql-std-2016-win-2016"
+  family  = "sql-std-2017-win-2019"
   project = "windows-sql-cloud"
 }
 
 
 #################################
-## Image Microsoft Server 2016 ##
+## Image Microsoft Server 2019 ## changed to 2019 from 2016
 #################################
 data "google_compute_image" "others" {
-  family  = "windows-2016"
+  family  = "windows-2019"
   project = "windows-cloud"
 }
 
@@ -50,7 +34,7 @@ resource "google_compute_instance" "osi3" {
     name         = "pibastion${count.index+1}"
     description  = "OSI PI Bastion Host"
     project      = var.project_id
-    zone         = data.google_compute_zones.zones.names[count.index]
+    zone         = var.zones[count.index]
     machine_type = lookup(var.compute-machine-type,var.epsec,10000)
     tags         = ["rdp", "iap", "bastion"]
     boot_disk {
@@ -88,7 +72,7 @@ resource "google_compute_instance" "osi-pi-mssql" {
 
     name         = "pisql-${count.index+1}"
     description  = "OSI PI MS SQL server"
-    zone         = data.google_compute_zones.zones.names[count.index]
+    zone         = var.zones[count.index]
     project      = var.project_id
     machine_type = lookup(var.compute-machine-type,var.epsec,10000)
     tags         = ["osi-internal", "rdp", "sql-server"]
@@ -126,7 +110,7 @@ resource "google_compute_disk" "disk-osi" {
     name    = "pi-${count.index+1}"
     project = var.project_id
     type    = "pd-standard"
-    zone    = data.google_compute_zones.zones.names[0]
+    zone    = var.zones[0]
     size    = 50
 }
 
@@ -140,7 +124,7 @@ resource "google_compute_instance" "osi1" {
     name         = "pisvr-1"
     description  = "OSI PI DA/AF/Analysis/Notification"
     project      = var.project_id
-    zone         = data.google_compute_zones.zones.names[count.index]
+    zone         = var.zones[count.index]
     machine_type = lookup(var.compute-machine-type,var.epsec,10000)
     tags         = ["osi-internal", "pi-server", "rdp", "sql-client"]
     boot_disk {
@@ -195,7 +179,7 @@ resource "google_compute_instance_template" "it-pivii" {
 
   disk {
     source_image = data.google_compute_image.others.self_link
-    auto_delete  = true
+    auto_delete  = false
     boot         = true
     type         = "pd-standard"
     disk_size_gb = 50
@@ -240,12 +224,19 @@ resource "google_compute_instance_group_manager" "mig-pivii" {
   name               = "mig-pivii"
   base_instance_name = "pivii"
   project            = var.project_id
-  zone               = data.google_compute_zones.zones.names[count.index]
+  zone               = var.zones[count.index]
   target_size        = 1
 
   named_port {
     name = "https"
     port = 443
+  }
+
+  #Preserving state via stateful disk since no autoscaling present
+  
+  stateful_disk {
+  device_name    = "persistent-disk-0"
+  delete_rule    = "NEVER"
   }
 
   version {

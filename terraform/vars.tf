@@ -1,20 +1,3 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
-
-
 variable "project_id" {
   description = "Please enter project id for deployment"
 }
@@ -33,6 +16,15 @@ variable "architecture" {
   }
 }
 
+variable "OS" {
+  description = "Please enter OS of your deployment machine"
+
+  validation {
+    condition     = var.OS == "Linux" || var.OS == "Windows" || var.OS == "MacOS"
+    error_message = "The value for OS is case sensitive, please enter \"Windows or Linux or MacOS\"."
+  }
+}
+
 variable "valid_domain" {
   description = "Please enter Yes or No"
 
@@ -44,6 +36,11 @@ variable "valid_domain" {
 
 variable "region" {
   description = "Please enter region for deployment supported by google cloud"
+}
+
+variable "zones" {
+  description = "Please enter region for deployment supported by google cloud"
+  type = list(string)
 }
 
 
@@ -68,7 +65,9 @@ variable "ad-cidr"{
   description = "Please enter CIDR range for Google Managed AD from: 10.0.0.0/20, 172.16.0.0/20, 192.168.0.0/20"
 
   validation {
-    condition     = var.ad-cidr == "10.0.0.0/20" || var.ad-cidr == "172.16.0.0/20" || var.ad-cidr == "192.168.0.0/20"
+    #condition     = var.ad-cidr == "10.0.0.0/20" || var.ad-cidr == "10.1.0.0/20" || var.ad-cidr == "172.16.0.0/20" || var.ad-cidr == "192.168.0.0/20"
+    #Validation for CIDR check (initial values of IP)
+    condition    = substr(var.ad-cidr, 0, 3) == "10." || substr(var.ad-cidr, 0, 7) == "172.16." || substr(var.ad-cidr, 0, 8) == "192.168."
     error_message = "The value for ad-cidr must be a valid \"RFC 1918 range\"."
   }
 }
@@ -77,7 +76,9 @@ variable "compute-multi-cidr" {
   description = "Please enter CIDR range for network from: 10.0.0.0/20, 172.16.0.0/20, 192.168.0.0/20"
 
   validation {
-    condition     = var.compute-multi-cidr == "10.0.0.0/20" || var.compute-multi-cidr == "172.16.0.0/20" || var.compute-multi-cidr == "192.168.0.0/20"
+    #condition     = var.compute-multi-cidr == "10.0.0.0/20" || var.compute-multi-cidr == "10.1.0.0/20" ||  var.compute-multi-cidr == "172.16.0.0/20" || var.compute-multi-cidr == "192.168.0.0/20"
+    #Validation for CIDR check (initial values of IP)
+    condition    = substr(var.compute-multi-cidr, 0, 3) == "10." || substr(var.compute-multi-cidr, 0, 7) == "172.16." || substr(var.compute-multi-cidr, 0, 8) == "192.168."
     error_message = "The value for ad-cidr must be a valid \"RFC 1918 range\"."
   }
 }

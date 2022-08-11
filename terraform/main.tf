@@ -1,18 +1,11 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
+#############################
+## Module For enabling Api ##
+#############################
+# module "osi-api-mod" {
+#   source     = "./modules/api"
+#   project_id = var.project_id
+# }
+
 
 ###############
 ## GCP Zones ##
@@ -20,20 +13,36 @@
 data "google_compute_zones" "zones"{
   region     = var.region
   project    = var.project_id
-}
+} 
 
 
 ###########################
 ## Add Lables to project ##
 ###########################
-resource "null_resource" "project_lables" {
+resource "null_resource" "project_lables1" {
+  count = var.OS == "Windows" ? 1 : 0
 
   provisioner "local-exec" {
     on_failure  = "continue"
-    command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${data.google_compute_zones.zones.names[0]},zone2=${data.google_compute_zones.zones.names[1]},zone3=${data.google_compute_zones.zones.names[2]} --quiet"
+    # command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${data.google_compute_zones.zones.names[0]},zone2=${data.google_compute_zones.zones.names[1]},zone3=${data.google_compute_zones.zones.names[2]} --quiet"
+    command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${var.zones[0]},zone2=${var.zones[1]},zone3=${var.zones[2]} --quiet"
+
     interpreter = ["PowerShell", "-Command"]
   }
 }
+
+resource "null_resource" "project_lables2" {
+  count = var.OS == "Linux" || var.OS == "MacOS" ? 1 : 0
+
+  provisioner "local-exec" {
+    on_failure  = "continue"
+    # command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${data.google_compute_zones.zones.names[0]},zone2=${data.google_compute_zones.zones.names[1]},zone3=${data.google_compute_zones.zones.names[2]} --quiet"
+    command     = "gcloud alpha projects update ${var.project_id} --update-labels zone1=${var.zones[0]},zone2=${var.zones[1]},zone3=${var.zones[2]} --quiet"
+
+    #interpreter = ["PowerShell", "-Command"]
+  }
+}
+
 
 
 #####################################
@@ -52,7 +61,7 @@ module "osi-iam-mod" {
   project_id = var.project_id
   sa_email   = data.google_compute_default_service_account.default.email
   tf_sa      = var.tf_sa
-  depends_on = [null_resource.project_lables]
+  depends_on = [null_resource.project_lables1,null_resource.project_lables2]
 }
 
 
@@ -83,6 +92,7 @@ module "osi-google-ad-mod" {
   ad-dn        = var.ad-dn
   ad-region    = var.region
   architecture = var.architecture
+  OS           = var.OS //added for count variable in google-ad.tf
 }
 
 
@@ -106,7 +116,7 @@ module "compute-nonha-mod" {
   compute-region        = var.region
   ssl-dn-compute        = var.ssl-dn
   valid_domain          = var.valid_domain
-
+  zones                 = var.zones
   depends_on            = [module.osi-google-ad-mod]
 }
 
@@ -130,8 +140,9 @@ module "compute-ha-mod" {
   security_policy       = google_compute_security_policy.policy.0.id
   compute-region        = var.region
   ssl-dn-compute        = var.ssl-dn
-
+  valid_domain          = var.valid_domain
   depends_on            = [module.osi-google-ad-mod]
+  zones                 = var.zones
 }
 
 

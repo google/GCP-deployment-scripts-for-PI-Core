@@ -1,19 +1,3 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
-
 # Getting the projet details and finding zone.
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
@@ -43,7 +27,7 @@ try{
 }
 
 # Check if machine is domain joined. If yes then exit and do nothing.
-Write-Host "Checking domain join"
+Write-Host "Checking doamin join"
 $flag = (Get-WmiObject -Class Win32_ComputerSystem).PartOfDomain
 if ($flag -eq "True"){
    Write-Host ("Machine is domain joined...exiting")
@@ -56,6 +40,11 @@ if ($flag -eq "True"){
     $password = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
     $password2 = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()}
     $username = "$domain\setupadmin"
+    
+    # Install Chrome Browser and make it default
+    $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    Write-Host "Chrome installation complete"
 
     # Create credentials object 
     $cred = New-Object System.Management.Automation.PSCredential($username,$password)
@@ -70,6 +59,8 @@ if ($flag -eq "True"){
     New-Item -Path 'D:\temp\' -ItemType Directory
     Set-Location D:\temp\
     gsutil -m cp -r gs://$storage/piserver/* D:\temp\
+
+    
     
     #Open firewall ports needed for communication between pi components
     netsh advfirewall firewall add rule name="Open port for af server inbound" dir=in action=allow protocol=TCP localport=5457
@@ -120,14 +111,22 @@ $machine_domain = -join($env:computername,".",$domain)
 setspn -s AFServer/$env:computername $domain\ds-piaf-svc$
 setspn -s AFServer/$machine_domain $domain\ds-piaf-svc$ 
 
+#Adding to give security privilege for PI Integrator account to access PI Data Archive
+Add-ADGroupMember -Identity PIUsersADGroup -Members ds-pint-svc$
+
 # Add piserver name to AFservers group present on the sql server. This is required as prerequisite
 Invoke-Command -ComputerName pisql-1 -ScriptBlock{Add-LocalGroupMember -Group "AFServers" -Member "$domain\$env:computername$"}
 
 # Scheudle piserver installation task which will run on the next boot 
 Write-Host("Scheduling piserver Task")
-$Trigger= New-ScheduledTaskTrigger -AtStartup
+$time = [DateTime]::Now.AddMinutes(2)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+#Trigger changed for 2019 support
+#$Trigger= New-ScheduledTaskTrigger -AtStartup 
 $Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "D:\temp\piserver.ps1" 
-Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
 
 # Disable gMSA-install task.
 Disable-ScheduledTask -TaskName "gMSA-install"
@@ -173,7 +172,7 @@ $ansvc = "$domain\ds-pian-svc$"
 $nosvc = "$domain\ds-pino-svc$"
 $pidassvc = "$domain\ds-pidas-svc$"
 
-$cmd = .\PI-Server_2018-SP3-Patch-1_.exe /passive ADDLOCAL=PIDataArchive,PITotal,FD_AppsServer,PiSqlDas.Rtqp,PINotificationsService,PIAnalysisService,FD_AFExplorer,FD_AFAnalysisMgmt,FD_AFDocs,PiPowerShell,pismt3 `
+$cmd = .\PI-Server_2018-SP3-Patch-3_.exe /passive ADDLOCAL=PIDataArchive,PITotal,FD_AppsServer,PiSqlDas.Rtqp,PINotificationsService,PIAnalysisService,FD_AFExplorer,FD_AFAnalysisMgmt,FD_AFDocs,PiPowerShell,pismt3 `
 PIHOME="D:\Program Files (x86)\PIPC" PIHOME64="D:\Program Files\PIPC" AFSERVER="$env:computername" SENDTELEMETRY="1" `
 AFSERVICEACCOUNT="$afsvc" FDSQLDBNAME="PIFD" FDSQLDBSERVER="$sqlserver" AFACKNOWLEDGEBACKUP="1" `
 PISQLDAS_SERVICEACCOUNT="$pidassvc" PI_LICDIR="$location\License" `
@@ -244,6 +243,17 @@ $PIDataArchive = Get-PIDataArchiveConnectionConfiguration -Default -ErrorAction 
 $PIDataArchiveConnection = Connect-PIDataArchive -PIDataArchiveConnectionConfiguration $PIDataArchive -ErrorAction Stop
 
 # Adding remaining WIS Identities and setting PI Identities security options
+
+# Remove-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Buffers" 
+# Add-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Buffers" -Description "Identity for PI Buffer Subsystem and PI Buffer Server"
+# Remove-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Interfaces" 
+# Add-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Interfaces" -Description "Identity for PI Interfaces" 
+# Remove-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Users" 
+# Add-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Users" -Description "Identity for the users to get Read access on the PI Data Archive" 
+
+# Set-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Buffers" -Description "Identity for PI Buffer Subsystem and PI Buffer Server" -Enabled 1 -CanDelete 0 -AllowUseInMappings 1 -AllowUseInTrusts 1 -AllowExplicitLogin 0 
+# Set-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Interfaces" -Description "Identity for PI Interfaces" -Enabled 1 -CanDelete 0 -AllowUseInMappings 1 -AllowUseInTrusts 1 -AllowExplicitLogin 0
+# Set-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Users" -Description "Identity for the users to get Read access on the PI Data Archive" -Enabled 1 -CanDelete 0 -AllowUseInMappings 1 -AllowUseInTrusts 1 -AllowExplicitLogin 0
 
 Add-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Points&Analysis Creator" -Description "Identity for PIACEService, PIAFService and users that can create and edit PI Points" -DisallowDelete
 Add-PIIdentity -Connection $PIDataArchiveConnection -Name "PI Web Apps" -Description "Identity for PI Vision, PI WebAPI, and PI WebAPI Crawler" -DisallowDelete

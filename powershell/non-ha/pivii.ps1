@@ -1,19 +1,3 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
-
 # Getting the projet details and finding zone. Needed for updating metadata of bastion server
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
@@ -60,6 +44,11 @@ if ($flag -eq "True"){
     $password = $password1 | ForEach-Object {$_.TrimStart('password: ')} |  ForEach-Object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
     $cred = New-Object System.Management.Automation.PSCredential($username,$password)
 
+    # Install Chrome Browser and make it default
+    $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    Write-Host "Chrome installation complete"
+
     # Prepare disk for pivision installation 
     Get-Disk | Where-Object partitionstyle -eq "raw" | Initialize-Disk -PartitionStyle GPT -PassThru | New-Partition -DriveLetter D -UseMaximumSize | Format-Volume -FileSystem NTFS -NewFileSystemLabel "disk1" -Confirm:$false
     
@@ -85,9 +74,11 @@ if ($flag -eq "True"){
     Install-PackageProvider -Name NuGet -Force
     Set-PSRepository PSGallery -InstallationPolicy Trusted
     Install-Module -Name 7Zip4Powershell -RequiredVersion 1.9.0
+
+    
     
     #Extract the installar to the staging location
-    Expand-7Zip -ArchiveFileName .\PI-Vision_2019-Patch-1_.exe -TargetPath '.\'
+    Expand-7Zip -ArchiveFileName .\PI-Vision_2020_.exe -TargetPath '.\'
     
 # Create gMSA.ps1 file to be executed by scheduler on the next boot.
 $gMSA = @'
@@ -114,10 +105,15 @@ Set-ADServiceAccount -Identity ds-piwe-svc -PrincipalsAllowedToRetrieveManagedPa
 
 # Scheudle vision installation task on the next boot
 Write-Host("Scheduling piserver Task")
-$Trigger= New-ScheduledTaskTrigger -AtStartup
-$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "c:\temp\vision.ps1" 
-Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force
-
+#$Trigger= New-ScheduledTaskTrigger -AtStartup  #trigger getting failed in 2019
+$time = [DateTime]::Now.AddMinutes(2)
+$Trigger= New-ScheduledTaskTrigger -Once -At $time
+$Action= New-ScheduledTaskAction -Execute "PowerShell" -Argument "c:\temp\vision.ps1"
+$Stset = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
+$Stset.CimInstanceProperties.Item('MultipleInstances').Value = 3
+# 2019 change test
+Register-ScheduledTask -TaskName "piserver-install" -Trigger $Trigger -User $username -Password $password2 -Action $Action -RunLevel Highest -Force -Settings $Stset
+Write-Host("************piserver Task scheudled************")
 # Disable gMSA-install task
 Disable-ScheduledTask -TaskName "gMSA-install"
 Unregister-ScheduledTask -TaskName "gMSA-install" -Confirm:$false
@@ -375,6 +371,9 @@ netsh advfirewall firewall add rule name="PI Integrator 444" dir=in action=allow
 Invoke-Command -FilePath c:\temp\db.ps1 -ComputerName 'pisql-1'
 
 Remove-Item C:\temp\*.ps1*
+
+Restart-Computer
+
 '@
 $vision_install | Out-File c:\temp\vision.ps1    
 
@@ -433,6 +432,21 @@ foreach ($db in $databases){
     $dbUser.Create()
     $dbrole = $database.Roles['db_owner']
     $dbrole.AddMember($name)
+    }
+
+
+
+ $domain_trim = $domain.ToUpper().Substring(0,$domain.Length-4)
+
+    $service_accounts = @( 'ds-pivs-svc$')
+    foreach ($sa in $service_accounts){
+        $name = -join("$domain_trim","\",$sa)
+        Remove-SqlLogin -LoginName $name -Force 
+
+        Add-SqlLogin -LoginName $name -LoginType WindowsUser -DefaultDatabase "master" -GrantConnectSql -Enable
+        $sqlServer = New-Object Microsoft.SqlServer.Management.Smo.Login -ArgumentList 'pisql-1' , $name
+        $sqlServer.AddToRole("dbcreator")
+        $sqlServer.AddToRole("securityadmin")
     }
 New-Item -Path C:\db_success.txt -ItemType file
 gsutil -m cp c:\db_success.txt gs://$storage/

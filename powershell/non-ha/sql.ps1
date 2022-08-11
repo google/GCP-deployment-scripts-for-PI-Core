@@ -1,19 +1,3 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-################################################################################
-
 # Getting the projet details and finding zone. Needed for updating metadata of bastion server
 $project = gcloud config list --format=value'(core.project)'
 $zone1 = gcloud projects describe $project --format='value[](labels.zone1)'
@@ -52,6 +36,11 @@ if ($flag -eq "True"){
     $password = $password1 | ForEach-object {$_.TrimStart('password: ')} |  ForEach-object {$_.TrimStart()} | ConvertTo-SecureString -asPlainText -Force
     $password2 = $password1 | ForEach-object {$_.TrimStart('password: ')} |  ForEach-object {$_.TrimStart()}
     $username = "$domain\setupadmin"
+
+    # Install Chrome Browser and make it default
+    $LocalTempDir = $env:TEMP; $ChromeInstaller = "ChromeInstaller.exe"; (new-object    System.Net.WebClient).DownloadFile('http://dl.google.com/chrome/install/375.126/chrome_installer.exe', "$LocalTempDir\$ChromeInstaller"); & "$LocalTempDir\$ChromeInstaller" /silent /install; $Process2Monitor =  "ChromeInstaller"; Do { $ProcessesFound = Get-Process | ?{$Process2Monitor -contains $_.Name} | Select-Object -ExpandProperty Name; If ($ProcessesFound) { "Still running: $($ProcessesFound -join ', ')" | Write-Host; Start-Sleep -Seconds 2 } else { rm "$LocalTempDir\$ChromeInstaller" -ErrorAction SilentlyContinue -Verbose } } Until (!$ProcessesFound)
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name NoAutoUpdate -Value 1
+    Write-Host "Chrome installation complete"
     
     # Create credentials object 
     $cred = New-Object System.Management.Automation.PSCredential($username,$password)
@@ -76,11 +65,13 @@ if ($flag -eq "True"){
 
     # Download executbales for installation 
     gsutil -m cp -r gs://$storage/piserver/* .
+
+
     
     # Run installation job
     write-host "starting with installation"
-    $cmd = .\PI-Server_2018-SP3-Patch-1_.exe /passive ADDLOCAL=FD_SQLServer,FD_SQLScriptExecution FDSQLDBNAME="PIFD" FDSQLDBSERVER="$env:computername" AFACKNOWLEDGEBACKUP="1" PI_ARCHIVESIZE="2048" PI_AUTOARCHIVEROOT="$env:computername"
-    
+    $cmd = .\PI-Server_2018-SP3-Patch-3_.exe /passive ADDLOCAL=FD_SQLServer,FD_SQLScriptExecution FDSQLDBNAME="PIFD" FDSQLDBSERVER="$env:computername" AFACKNOWLEDGEBACKUP="1" PI_ARCHIVESIZE="2048" PI_AUTOARCHIVEROOT="$env:computername"
+    #.\PI-Server_2018-SP3-Patch-1_.exe /passive ADDLOCAL=FD_SQLServer,FD_SQLScriptExecution   SENDTELEMETRY="1" FDSQLDBNAME="PIFD" FDSQLDBSERVER="$env:computername" FDREMOTEAPPS="$afserver" AFACKNOWLEDGEBACKUP="1" PISQLDAS_REMOTEAPPS=$afserver PI_ARCHIVESIZE="2048" PI_AUTOARCHIVEROOT=$env:computername
     $cmd
     Start-Sleep -S 300
 
@@ -123,7 +114,7 @@ if ($flag -eq "True"){
 
     $domain_trim = $domain.ToUpper().Substring(0,$domain.Length-4)
 
-    $service_accounts = @('ds-pint-svc$')
+    $service_accounts = @('ds-pivs-svc$')
     foreach ($sa in $service_accounts){
         $name = -join("$domain_trim","\",$sa)
         
@@ -134,6 +125,17 @@ if ($flag -eq "True"){
         $sqlServer.AddToRole("securityadmin")
     }
     
+    $service_accounts = @('ds-pint-svc$')
+    foreach ($sa in $service_accounts){
+        $name = -join("$domain_trim","\",$sa)
+        
+        Add-SqlLogin -LoginName $name -LoginType WindowsUser -DefaultDatabase "master" -GrantConnectSql -Enable
+        $sqlServer = New-Object Microsoft.SqlServer.Management.Smo.Login -ArgumentList 'pisql-1' , $name
+        # $sqlServer.AddToRole("sysadmin")
+        $sqlServer.AddToRole("dbcreator")
+        $sqlServer.AddToRole("securityadmin")
+    }
+
     try{
         gcloud compute instances add-metadata pibastion1 --zone=$zone1 --metadata=sqlReady="True"
     }catch{
